@@ -1,0 +1,2037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NeuroFocus — Muse Focus Monitor</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Outfit:wght@200;300;400;500;600;700&display=swap');
+:root{--bg:#0a0e17;--card:#111827;--card2:#0f1629;--bdr:#1e293b;--bdr2:#06b6d440;--t1:#e2e8f0;--t2:#94a3b8;--t3:#475569;--cy:#06b6d4;--cy2:#22d3ee;--gn:#10b981;--yl:#f59e0b;--rd:#ef4444;--pu:#8b5cf6;--pk:#ec4899}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--t1);min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 600px 400px at 20% 30%,#06b6d408,transparent 70%),radial-gradient(ellipse 500px 500px at 80% 70%,#8b5cf608,transparent 70%);pointer-events:none;z-index:0}
+.app{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:18px 22px}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--bdr);flex-wrap:wrap;gap:10px}
+.logo{display:flex;align-items:center;gap:11px}
+.logo-ic{width:36px;height:36px;background:linear-gradient(135deg,var(--cy),var(--pu));border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 0 18px #06b6d430}
+.logo h1{font-size:19px;font-weight:600;letter-spacing:-.5px;background:linear-gradient(135deg,var(--t1),var(--cy2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo span{font-family:'DM Mono',monospace;font-size:10px;color:var(--t3);letter-spacing:1px;text-transform:uppercase}
+.hdr-btns{display:flex;gap:7px;flex-wrap:wrap}
+.b{font-family:'Outfit',sans-serif;font-size:12px;font-weight:500;padding:7px 14px;border-radius:7px;cursor:pointer;transition:.3s;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.bc{border:1px solid var(--cy);background:#06b6d415;color:var(--cy2)}.bc:hover{background:#06b6d425}.bc.on{border-color:var(--gn);color:var(--gn);background:#10b98115}.bc.busy{border-color:var(--yl);color:var(--yl)}
+.bg{border:1px solid var(--bdr);background:transparent;color:var(--t2)}.bg:hover{border-color:var(--t3);color:var(--t1)}.bg.on{border-color:var(--cy);color:var(--cy2);background:#06b6d415}
+.br{border:1px solid var(--rd);background:transparent;color:var(--rd)}.br.on{background:#ef444420;animation:prec 1.5s infinite}
+@keyframes prec{50%{box-shadow:0 0 10px #ef444440}}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--t3);transition:.3s}.dot.on{background:var(--gn);box-shadow:0 0 5px var(--gn)}.dot.busy{background:var(--yl);animation:bk 1s infinite}
+@keyframes bk{50%{opacity:.3}}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.c{background:var(--card);border:1px solid var(--bdr);border-radius:11px;padding:16px;transition:border-color .3s}.c:hover{border-color:var(--bdr2)}
+.fw{grid-column:1/-1}
+.ch{font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--t3);margin-bottom:12px;display:flex;align-items:center;gap:7px}
+.ch .ic{font-size:12px}
+
+/* Gauge */
+.gc{text-align:center;position:relative;overflow:hidden}
+.gc::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at center bottom,var(--gw,#06b6d408),transparent 70%);pointer-events:none;transition:.5s}
+.gw{position:relative;width:240px;height:140px;margin:0 auto 6px}
+.gs{width:100%;height:100%}
+.gt{fill:none;stroke:var(--bdr);stroke-width:13;stroke-linecap:round}
+.gf{fill:none;stroke-width:13;stroke-linecap:round;transition:stroke-dashoffset .6s cubic-bezier(.4,0,.2,1),stroke .4s;filter:drop-shadow(0 0 7px var(--cy))}
+.gv{font-family:'DM Mono',monospace;font-size:44px;font-weight:500;letter-spacing:-2px;transition:color .4s}
+.gl{font-size:12px;color:var(--t2);font-weight:300}
+.gb{display:inline-block;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:3px 12px;border-radius:14px;margin-top:6px;transition:.4s}
+
+/* Waveform */
+.wb{height:110px;background:var(--card2);border-radius:7px;overflow:hidden;border:1px solid var(--bdr)}
+.wc{width:100%;height:100%;display:block}
+.cl{display:flex;gap:12px;margin-top:6px;justify-content:center}
+.cl>div{font-family:'DM Mono',monospace;font-size:9px;color:var(--t3);display:flex;align-items:center;gap:3px}
+.cd{width:5px;height:5px;border-radius:50%}
+
+/* Bands */
+.bands{display:flex;flex-direction:column;gap:9px}
+.br2{display:flex;align-items:center;gap:9px}
+.bn{font-family:'DM Mono',monospace;font-size:10px;color:var(--t2);width:48px;text-align:right}
+.bt{flex:1;height:9px;background:var(--bg);border-radius:5px;position:relative}
+.bf{height:100%;border-radius:5px;transition:width .5s;position:absolute;top:0;left:0}
+.bm{position:absolute;top:-4px;bottom:-4px;width:2px;border-radius:1px;background:var(--t1);opacity:.5;transition:left .3s;z-index:2}
+.bm::after{content:'';position:absolute;top:-5px;left:-3px;width:8px;height:8px;border:1.5px solid var(--t2);border-radius:50%;background:var(--bg)}
+.bv{font-family:'DM Mono',monospace;font-size:9px;color:var(--t3);width:32px}
+
+/* Stats */
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.si{background:var(--card2);border-radius:7px;padding:11px;border:1px solid var(--bdr)}
+.sv{font-family:'DM Mono',monospace;font-size:20px;font-weight:500;line-height:1.2}
+.sl{font-size:10px;color:var(--t3);margin-top:1px}
+
+/* History */
+.hc{width:100%;height:90px;display:block;background:var(--card2);border-radius:7px;border:1px solid var(--bdr)}
+
+/* Settings */
+.sf{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.sg2{display:flex;align-items:center;gap:7px}
+.sl2{font-size:11px;color:var(--t2)}
+.si2{font-family:'DM Mono',monospace;font-size:10px;background:var(--bg);border:1px solid var(--bdr);color:var(--t1);padding:4px 9px;border-radius:5px;width:50px;text-align:center}
+.si2:focus{outline:none;border-color:var(--cy)}
+select.si2{width:auto;padding-right:6px;cursor:pointer;-webkit-appearance:auto}
+.tg{position:relative;width:38px;height:20px;cursor:pointer}.tg input{display:none}
+.tt{position:absolute;inset:0;background:var(--bg);border:1px solid var(--bdr);border-radius:10px;transition:.3s}
+.tg input:checked+.tt{background:#06b6d430;border-color:var(--cy)}
+.th{position:absolute;top:2px;left:2px;width:14px;height:14px;background:var(--t3);border-radius:50%;transition:.3s;pointer-events:none}
+.tg input:checked~.th{left:20px;background:var(--cy2)}
+
+/* Goal panel */
+.goal-panel{background:var(--card2);border:1px solid var(--bdr);border-radius:8px;padding:14px;margin-top:10px}
+.goal-active{border-color:var(--cy);background:#06b6d410}
+.goal-bar{height:6px;background:var(--bg);border-radius:3px;margin:8px 0;overflow:hidden}
+.goal-fill{height:100%;border-radius:3px;transition:width 1s}
+
+/* Log */
+.lt{cursor:pointer;user-select:none}
+.lt::after{content:' ▸';font-size:9px}.lt.op::after{content:' ▾'}
+#dLog{display:none;background:var(--bg);border:1px solid var(--bdr);border-radius:7px;padding:9px;max-height:160px;overflow-y:auto;font-family:'DM Mono',monospace;font-size:9px;line-height:1.4;color:var(--t3);margin-top:8px}
+#dLog.sh{display:block}
+#dLog .err{color:var(--rd)}#dLog .ok{color:var(--gn)}#dLog .warn{color:var(--yl)}#dLog .info{color:var(--cy2)}
+
+/* Alerts & mini */
+.ao{display:none;position:fixed;inset:0;background:#ef444412;z-index:100;pointer-events:none;animation:af 1s infinite}.ao.on{display:block}
+@keyframes af{0%,100%{opacity:0}50%{opacity:1}}
+.ab{display:none;position:fixed;top:14px;left:50%;transform:translateX(-50%);background:#ef4444dd;color:#fff;padding:9px 22px;border-radius:9px;font-weight:500;font-size:12px;z-index:101;box-shadow:0 4px 18px #ef444460}.ab.on{display:block}
+.pb{display:none;position:fixed;top:14px;left:50%;transform:translateX(-50%);background:#f59e0bdd;color:#fff;padding:9px 22px;border-radius:9px;font-weight:500;font-size:12px;z-index:102;box-shadow:0 4px 18px #f59e0b60;align-items:center;gap:8px}.pb.on{display:flex}
+#pauseBtn.on{background:#f59e0b;color:#000;font-weight:600}
+
+/* Goal report overlay */
+.report-overlay{display:none;position:fixed;inset:0;background:rgba(10,14,23,.92);z-index:300;align-items:center;justify-content:center}
+.report-overlay.on{display:flex}
+.report-box{background:var(--card);border:1px solid var(--bdr);border-radius:14px;padding:28px 34px;max-width:420px;text-align:center}
+.report-box h2{font-size:20px;margin-bottom:14px;font-weight:600}
+.report-grade{font-family:'DM Mono',monospace;font-size:64px;font-weight:500;line-height:1}
+.report-details{font-size:13px;color:var(--t2);margin-top:12px;line-height:1.7}
+.report-close{margin-top:18px}
+
+.mini-ov{display:none;position:fixed;inset:0;z-index:200;background:var(--bg);align-items:center;justify-content:center;flex-direction:column;cursor:pointer}.mini-ov.on{display:flex}
+.mini-orb{width:200px;height:200px;border-radius:50%;transition:background 1s,box-shadow 1s;display:flex;align-items:center;justify-content:center;flex-direction:column}
+.mini-sc{font-family:'DM Mono',monospace;font-size:64px;font-weight:500;color:#fff;text-shadow:0 0 30px rgba(0,0,0,.5)}
+.mini-lb{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.7);margin-top:3px}
+.mini-hn{position:fixed;bottom:18px;font-size:10px;color:var(--t3)}.mini-tm{position:fixed;top:18px;right:22px;font-family:'DM Mono',monospace;font-size:11px;color:var(--t3)}
+.rd2{display:none;width:7px;height:7px;border-radius:50%;background:var(--rd);animation:bk .8s infinite}.rd2.on{display:inline-block}
+.dm{display:none;position:fixed;bottom:14px;right:14px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:#f59e0b20;color:#f59e0b;padding:4px 10px;border-radius:5px;border:1px solid #f59e0b40;z-index:50}.dm.on{display:block}
+@media(max-width:700px){.g{grid-template-columns:1fr}.fw{grid-column:1}}
+</style>
+</head>
+<body>
+<div class="ao" id="aOvl"></div>
+<div class="ab" id="aBnr">Focus drifting — refocus</div>
+<div class="pb" id="pBnr">&#9646;&#9646; PAUSED — headband off &nbsp;<button onclick="togglePause()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:11px">Resume</button></div>
+<div class="dm" id="dmBdg">DEMO</div>
+
+<div class="mini-ov" id="miniM" onclick="toggleMini()">
+  <div class="mini-tm" id="miniTm">0:00</div>
+  <div class="mini-orb" id="miniOrb"><div class="mini-sc" id="miniSc">&mdash;</div><div class="mini-lb" id="miniLb">standby</div></div>
+  <div class="mini-hn">click to expand</div>
+</div>
+
+<!-- Goal Report -->
+<div class="report-overlay" id="rptOvl">
+  <div class="report-box">
+    <h2 id="rptTitle">Focus Goal Complete</h2>
+    <div class="report-grade" id="rptGrade">A</div>
+    <div class="report-details" id="rptDetails"></div>
+    <button class="b bc report-close" onclick="closeReport()">Close</button>
+  </div>
+</div>
+
+<div class="app" id="mainApp">
+<header>
+  <div class="logo">
+    <div class="logo-ic">&#129504;</div>
+    <div><h1>NeuroFocus</h1><span>Muse S EEG Monitor</span></div>
+  </div>
+  <div class="hdr-btns">
+    <button class="b bg" onclick="toggleMini()">&#9724; Mini</button>
+    <button class="b bg" onclick="openWidget()">&#9635; Widget</button>
+    <button class="b br" id="recBtn" onclick="toggleRec()"><span class="rd2" id="recDot"></span>Record</button>
+    <button class="b bg" id="pauseBtn" onclick="togglePause()" style="display:none">&#9646;&#9646; Pause</button>
+    <button class="b bg" onclick="startDemo()">Demo</button>
+    <button class="b bc" id="cBtn" onclick="handleConnect()"><span class="dot" id="cDot"></span><span id="cLbl">Connect</span></button>
+  </div>
+</header>
+<div class="g">
+  <div class="c gc fw" id="fCard">
+    <div class="ch"><span class="ic">&#9678;</span>Focus Level</div>
+    <div class="gw"><svg class="gs" viewBox="0 0 240 140"><path class="gt" d="M 26 130 A 106 106 0 0 1 214 130"/><path class="gf" id="gF" d="M 26 130 A 106 106 0 0 1 214 130" stroke="var(--cy)" stroke-dasharray="310" stroke-dashoffset="310"/></svg>
+    <div style="position:absolute;bottom:6px;left:50%;transform:translateX(-50%);text-align:center"><div class="gv" id="gV">&mdash;</div><div class="gl">focus index</div></div></div>
+    <div class="gb" id="gB" style="background:#47556999;color:var(--t3)">STANDBY</div>
+    <div id="sigQ" style="font-family:'DM Mono',monospace;font-size:9px;margin-top:6px;color:var(--t3);min-height:14px"></div>
+  </div>
+
+  <div class="c fw">
+    <div class="ch"><span class="ic">~</span>EEG Waveform</div>
+    <div class="wb"><canvas class="wc" id="wfC"></canvas></div>
+    <div class="cl"><div><span class="cd" style="background:#06b6d4"></span>TP9</div><div><span class="cd" style="background:#8b5cf6"></span>AF7</div><div><span class="cd" style="background:#ec4899"></span>AF8</div><div><span class="cd" style="background:#10b981"></span>TP10</div></div>
+  </div>
+
+  <div class="c">
+    <div class="ch"><span class="ic">&#9776;</span>Band Power <span style="font-size:8px;color:var(--t3);margin-left:auto">&#9670;=target</span></div>
+    <div class="bands">
+      <div class="br2"><span class="bn">Delta</span><div class="bt"><div class="bf" id="bD" style="background:#6366f1"></div><div class="bm" id="tD"></div></div><span class="bv" id="vD">&mdash;</span></div>
+      <div class="br2"><span class="bn">Theta</span><div class="bt"><div class="bf" id="bT" style="background:#8b5cf6"></div><div class="bm" id="tT"></div></div><span class="bv" id="vT">&mdash;</span></div>
+      <div class="br2"><span class="bn">Alpha</span><div class="bt"><div class="bf" id="bA" style="background:#06b6d4"></div><div class="bm" id="tA"></div></div><span class="bv" id="vA">&mdash;</span></div>
+      <div class="br2"><span class="bn">Beta</span><div class="bt"><div class="bf" id="bBe" style="background:#10b981"></div><div class="bm" id="tBe"></div></div><span class="bv" id="vBe">&mdash;</span></div>
+      <div class="br2"><span class="bn">Gamma</span><div class="bt"><div class="bf" id="bG" style="background:#f59e0b"></div><div class="bm" id="tG"></div></div><span class="bv" id="vG">&mdash;</span></div>
+    </div>
+  </div>
+
+  <div class="c">
+    <div class="ch"><span class="ic">&#9638;</span>Session</div>
+    <div class="sg">
+      <div class="si"><div class="sv" id="sA">&mdash;</div><div class="sl">Avg Focus</div></div>
+      <div class="si"><div class="sv" id="sP">&mdash;</div><div class="sl">Peak Focus</div></div>
+      <div class="si"><div class="sv" id="sT">0:00</div><div class="sl">Session Time</div></div>
+      <div class="si"><div class="sv" id="sD">0</div><div class="sl">Drift Alerts</div></div>
+    </div>
+    <!-- Zone Time Breakdown -->
+    <div style="margin-top:10px">
+      <div style="display:flex;gap:4px;height:14px;border-radius:4px;overflow:hidden;background:var(--card2)" id="zoneBar">
+        <div id="zbDeep" style="background:var(--gn);height:100%;transition:width .5s"></div>
+        <div id="zbMod" style="background:var(--yl);height:100%;transition:width .5s"></div>
+        <div id="zbDist" style="background:var(--rd);height:100%;transition:width .5s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:9px;margin-top:4px;color:var(--t2)">
+        <span style="color:var(--gn)">&#9632; Deep <span id="zdT">0:00</span> (<span id="zdP">0</span>%)</span>
+        <span style="color:var(--yl)">&#9632; Moderate <span id="zmT">0:00</span> (<span id="zmP">0</span>%)</span>
+        <span style="color:var(--rd)">&#9632; Distracted <span id="zrT">0:00</span> (<span id="zrP">0</span>%)</span>
+      </div>
+    </div>
+    <div id="appDisplay" style="margin-top:8px;font-family:'DM Mono',monospace;font-size:10px;color:var(--t3);display:none">App: <span id="appName" style="color:var(--cy2)">—</span></div>
+  </div>
+
+  <!-- Session History -->
+  <div class="c fw">
+    <div class="ch" onclick="document.getElementById('histBody').style.display=document.getElementById('histBody').style.display==='none'?'block':'none'" style="cursor:pointer"><span class="ic">&#128197;</span>Session History <span style="font-size:10px;color:var(--t3)">(click to toggle)</span></div>
+    <div id="histBody" style="display:none">
+      <div id="histList" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--t2);max-height:200px;overflow-y:auto"></div>
+      <div style="margin-top:6px;display:flex;gap:6px">
+        <button class="b bg" onclick="clearSessionHistory()" style="font-size:9px;padding:3px 8px">Clear History</button>
+        <button class="b bg" onclick="exportSessionHistory()" style="font-size:9px;padding:3px 8px">Export CSV</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="c fw">
+    <div class="ch"><span class="ic">&mdash;</span>Focus History (2 min)</div>
+    <canvas class="hc" id="hC"></canvas>
+  </div>
+
+  <!-- Baseline Calibration -->
+  <div class="c fw">
+    <div class="ch"><span class="ic">&#9881;</span>Baseline Calibration</div>
+    <div class="sf">
+      <button class="b bc" id="calBtn" onclick="startCalibration()">Calibrate (2 min)</button>
+      <span id="calInfo" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--t3)">Not calibrated — using auto mode</span>
+    </div>
+    <div style="margin-top:8px">
+      <div class="sf" style="align-items:center;gap:6px;flex-wrap:wrap">
+        <span class="sl2" style="font-size:10px">Voice</span>
+        <select class="si2" id="voiceSel" style="width:auto;max-width:200px;font-size:10px">
+          <option>Loading voices…</option>
+        </select>
+        <button class="b bg" onclick="testVoice()" style="font-size:9px;padding:3px 8px">Test</button>
+      </div>
+      <div id="voiceTip" style="font-size:9px;color:var(--t3);margin-top:4px;line-height:1.4"></div>
+    </div>
+    <div id="calPanel" style="display:none;margin-top:10px">
+      <div class="goal-panel goal-active">
+        <div style="text-align:center;margin-bottom:8px">
+          <div id="calInstruction" style="font-size:14px;color:var(--cy2);font-weight:500">Preparing…</div>
+          <div id="calSubtext" style="font-size:11px;color:var(--t2);margin-top:4px"></div>
+        </div>
+        <div class="goal-bar"><div class="goal-fill" id="calFill" style="width:0%;background:var(--cy)"></div></div>
+        <div style="text-align:center;font-family:'DM Mono',monospace;font-size:12px;color:var(--t1)" id="calTimer">2:00</div>
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-top:6px;line-height:1.5">
+      Guided 2-minute baseline: 60s eyes-closed relaxation, then 60s focused mental math.<br>
+      Sets your personal relaxed/focused reference for more accurate scoring.
+      <span id="iafDisplay" style="display:none"><br>Your alpha frequency: <span id="iafValue" style="color:var(--cy2)">—</span></span>
+    </div>
+  </div>
+
+  <!-- Timed Focus Goal -->
+  <div class="c fw">
+    <div class="ch"><span class="ic">&#9873;</span>Focus Goal</div>
+    <div class="sf">
+      <div class="sg2"><span class="sl2">Target</span><select class="si2" id="goalLevel"><option value="70">Deep Focus (70+)</option><option value="40">Moderate (40+)</option><option value="50">Custom</option></select></div>
+      <div class="sg2"><span class="sl2">Duration</span><input type="number" class="si2" id="goalDur" value="25" min="1" max="240" style="width:45px"><span class="sl2">min</span></div>
+      <button class="b bc" id="goalBtn" onclick="toggleGoal()">Start Goal</button>
+    </div>
+    <div class="goal-panel" id="goalPanel" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
+        <span id="goalStatus" style="color:var(--cy2)">In progress…</span>
+        <span id="goalTimer" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--t1)">25:00</span>
+      </div>
+      <div class="goal-bar"><div class="goal-fill" id="goalFill" style="width:0%;background:var(--cy)"></div></div>
+      <div style="display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:10px;color:var(--t3)">
+        <span>Avg: <span id="goalAvg">—</span></span>
+        <span>Time in zone: <span id="goalZone">—</span></span>
+        <span>Target: <span id="goalTarget">70</span>+</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="c fw">
+    <div class="ch"><span class="ic">&#9881;</span>Settings</div>
+    <div class="sf">
+      <div class="sg2"><span class="sl2">Alert below</span><input type="number" class="si2" id="sTh" value="30" min="0" max="100"><span class="sl2">%</span></div>
+      <div class="sg2"><span class="sl2">for</span><input type="number" class="si2" id="sDu" value="5" min="1" max="60"><span class="sl2">sec</span></div>
+      <div class="sg2"><span class="sl2">Alerts</span><label class="tg"><input type="checkbox" id="sAl" checked><div class="tt"></div><div class="th"></div></label></div>
+      <div class="sg2"><span class="sl2">Sound</span><label class="tg"><input type="checkbox" id="sSn" checked><div class="tt"></div><div class="th"></div></label></div>
+      <div class="sg2"><span class="sl2">Refresh</span><input type="number" class="si2" id="sRf" value="1" min="1" max="30"><span class="sl2">sec</span></div>
+      <div class="sg2"><span class="sl2">Rec interval</span><input type="number" class="si2" id="sRi" value="5" min="1" max="60"><span class="sl2">sec</span></div>
+      <div class="sg2"><span class="sl2">Track app</span><label class="tg"><input type="checkbox" id="sApp" checked onchange="toggleAppTracking()"><div class="tt"></div><div class="th"></div></label></div>
+    </div>
+    <!-- Overlay Settings -->
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bdr)">
+      <div style="font-size:11px;color:var(--t2);margin-bottom:6px;font-weight:500">Window Overlay (requires neurofocus-overlay.py)</div>
+      <div class="sf" style="gap:10px">
+        <div class="sg2">
+          <span class="sl2">Brightness</span>
+          <input type="range" id="ovBright" min="10" max="200" value="100" style="width:80px;accent-color:var(--cy)" oninput="updateOverlaySettings()">
+          <span class="sl2" id="ovBrightVal" style="width:30px;text-align:right">100%</span>
+        </div>
+        <div class="sg2">
+          <span class="sl2">Border</span>
+          <input type="range" id="ovBorder" min="1" max="12" value="4" style="width:60px;accent-color:var(--cy)" oninput="updateOverlaySettings()">
+          <span class="sl2" id="ovBorderVal" style="width:24px;text-align:right">4px</span>
+        </div>
+        <div class="sg2">
+          <span class="sl2">Glow</span>
+          <input type="range" id="ovGlow" min="0" max="30" value="12" style="width:60px;accent-color:var(--cy)" oninput="updateOverlaySettings()">
+          <span class="sl2" id="ovGlowVal" style="width:24px;text-align:right">12px</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio Feedback -->
+  <div class="c fw">
+    <div class="ch"><span class="ic">&#9835;</span>Audio Feedback</div>
+    <div class="sf">
+      <div class="sg2"><span class="sl2">Ambient tone</span><label class="tg"><input type="checkbox" id="sAmb" onchange="toggleAmbient()"><div class="tt"></div><div class="th"></div></label></div>
+      <div class="sg2"><span class="sl2">Style</span>
+        <select class="si2" id="ambStyle" onchange="updateAmbientStyle()" style="width:auto">
+          <option value="handpan">Handpan (D minor)</option>
+          <option value="forest">Forest birds</option>
+          <option value="ambient">Ambient pads</option>
+          <option value="zen">Zen bells</option>
+          <option value="solfeggio">Solfeggio frequencies</option>
+        </select>
+      </div>
+      <div class="sg2"><span class="sl2">Volume</span><input type="range" id="ambVol" min="0" max="100" value="30" style="width:80px;accent-color:var(--cy)" oninput="updateAmbientVol()"></div>
+      <div class="sg2" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--t3)" id="ambStatus">Off</div>
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-top:8px;line-height:1.5">
+      Higher focus = more notes, richer layering &middot; Lower focus = sparse, simple<br>
+      Solfeggio mode: focused plays 741-963 Hz (awakening), distracted plays 174-396 Hz (grounding)
+    </div>
+  </div>
+  <div class="c fw">
+    <div class="ch"><span class="ic">&#9670;</span>Band Targets</div>
+    <div class="sf" style="margin-bottom:10px">
+      <div class="sg2"><span class="sl2">Preset</span>
+        <select class="si2" id="presetSel" onchange="applyPreset()" style="width:auto">
+          <option value="custom">Custom</option>
+          <option value="deepfocus" selected>Deep Focus</option>
+          <option value="creative">Creative Flow</option>
+          <option value="relaxed">Relaxed Alert</option>
+          <option value="meditate">Meditation</option>
+          <option value="learning">Active Learning</option>
+        </select>
+      </div>
+    </div>
+    <div class="sf">
+      <div class="sg2"><span class="sl2">Delta</span><input type="number" class="si2 btgt" data-band="D" value="15" min="0" max="100"></div>
+      <div class="sg2"><span class="sl2">Theta</span><input type="number" class="si2 btgt" data-band="T" value="20" min="0" max="100"></div>
+      <div class="sg2"><span class="sl2">Alpha</span><input type="number" class="si2 btgt" data-band="A" value="25" min="0" max="100"></div>
+      <div class="sg2"><span class="sl2">Beta</span><input type="number" class="si2 btgt" data-band="Be" value="55" min="0" max="100"></div>
+      <div class="sg2"><span class="sl2">Gamma</span><input type="number" class="si2 btgt" data-band="G" value="15" min="0" max="100"></div>
+    </div>
+  </div>
+
+  <div class="c fw" style="font-family:'DM Mono',monospace">
+    <div class="ch lt" id="logTg" onclick="toggleLog()"><span class="ic">&#8984;</span>Connection Log</div>
+    <div id="dLog"><div class="info">Ready</div></div>
+  </div>
+</div>
+</div>
+
+<script>
+// ==================== DEBUG ====================
+function dbg(m,t){var e=document.getElementById('dLog'),d=document.createElement('div');if(t)d.className=t;d.textContent='['+new Date().toLocaleTimeString('en-US',{hour12:0,hour:'2-digit',minute:'2-digit',second:'2-digit'})+'] '+m;e.appendChild(d);e.scrollTop=e.scrollHeight}
+function toggleLog(){document.getElementById('dLog').classList.toggle('sh');document.getElementById('logTg').classList.toggle('op')}
+
+// ==================== BAND PRESETS ====================
+var PRESETS={
+  deepfocus:{D:15,T:20,A:25,Be:55,G:15,desc:'Low theta/alpha, high beta for sustained concentration'},
+  creative:{D:15,T:40,A:35,Be:30,G:10,desc:'Elevated theta/alpha for divergent thinking'},
+  relaxed:{D:20,T:25,A:50,Be:20,G:10,desc:'High alpha for calm alertness'},
+  meditate:{D:25,T:45,A:40,Be:15,G:8,desc:'High theta for deep meditative state'},
+  learning:{D:15,T:30,A:30,Be:45,G:20,desc:'Balanced theta with strong beta for encoding'}
+};
+function applyPreset(){
+  var sel=document.getElementById('presetSel').value;
+  if(sel==='custom')return;
+  var p=PRESETS[sel];if(!p)return;
+  document.querySelectorAll('.btgt').forEach(function(inp){var b=inp.dataset.band;if(p[b]!==undefined)inp.value=p[b]});
+}
+applyPreset(); // Set default
+
+// ==================== STATE ====================
+var S={connected:0,demo:0,device:null,gatt:null,ctrl:null,score:0,history:[],
+band:{delta:0,theta:0,alpha:0,beta:0,gamma:0},
+buf:{tp9:[],af7:[],af8:[],tp10:[]},wf:{tp9:[],af7:[],af8:[],tp10:[]},
+start:null,fS:0,fN:0,peak:0,drifts:0,lowSt:null,alertOn:0,af:null,pkts:0,
+mini:0,rec:0,recD:[],lastRec:0,sigQuality:'unknown',sigGoodChs:0,sigTotalChs:0,sigReasons:[],
+engSmooth:0,engHistory:[],calibrating:false,calData:[],calBaseline:0.7,calRange:1.5,
+goal:0,goalStart:0,goalDur:0,goalTarget:0,goalSamples:[],goalInZone:0,
+zoneMs:{deep:0,moderate:0,distracted:0,noSignal:0},lastZoneTick:0,paused:false};
+var SVC=0xfe8d,CU='273e0001-4c4d-454d-96be-f03bac821358',SR=256,BSZ=512,WP=400,HS=120;
+var widgetWin=null;
+
+// ==================== MUSE COMMANDS ====================
+function enc(s){var b=[];for(var i=0;i<s.length;i++)b.push(s.charCodeAt(i));return new Uint8Array([b.length].concat(b))}
+async function tx(ch,s){var d=enc(s);dbg('TX: '+s.replace(/\n/g,'\\n'),'info');try{if(ch.properties&&ch.properties.writeWithoutResponse)await ch.writeValueWithoutResponse(d.buffer);else await ch.writeValue(d.buffer)}catch(e){try{await ch.writeValue(d)}catch(e2){dbg('TX fail','err')}}}
+function sl(ms){return new Promise(function(r){setTimeout(r,ms)})}
+var lcr='',crv=null;
+function wr(ms){lcr='';return new Promise(function(r){crv=r;setTimeout(function(){crv=null;r(lcr)},ms||1200)})}
+async function txr(ch,s){var p=wr(1500);await tx(ch,s);var resp=await p;var m=resp.match(/"rc"\s*:\s*(\d+)/);return m?parseInt(m[1]):-1}
+
+// ==================== CONNECTION ====================
+async function handleConnect(){
+  if(S.connected||S.demo){disconnect();return}
+  var btn=document.getElementById('cBtn'),dot=document.getElementById('cDot'),lbl=document.getElementById('cLbl');
+  document.getElementById('dLog').innerHTML='';btn.className='b bc busy';dot.className='dot busy';lbl.textContent='…';
+  try{
+    if(!navigator.bluetooth)throw new Error('No Web Bluetooth');
+    dbg('Opening picker…');
+    var dev=await navigator.bluetooth.requestDevice({filters:[{services:[SVC]},{namePrefix:'Muse'}],optionalServices:[SVC,'0000fe8d-0000-1000-8000-00805f9b34fb']});
+    S.device=dev;dbg('Device: '+dev.name,'ok');dev.addEventListener('gattserverdisconnected',onDc);
+    var srv=await dev.gatt.connect();S.gatt=srv;dbg('GATT OK','ok');
+    var svc;try{svc=await srv.getPrimaryService(SVC)}catch(e){svc=await srv.getPrimaryService('0000fe8d-0000-1000-8000-00805f9b34fb')}
+    var ctrl=await svc.getCharacteristic(CU);S.ctrl=ctrl;
+    try{await ctrl.startNotifications();ctrl.addEventListener('characteristicvaluechanged',function(e){var b=new Uint8Array(e.target.value.buffer),t='';for(var i=0;i<b.length;i++){var c=b[i];t+=(c>=32&&c<=126)?String.fromCharCode(c):''}lcr+=t;if(lcr.indexOf('}')>=0&&crv){var r=crv;crv=null;r(lcr)}})}catch(e){}
+    var chars=await svc.getCharacteristics();
+    for(var i=0;i<chars.length;i++){var c=chars[i];if(c.uuid===CU)continue;if(c.properties.notify){try{await c.startNotifications();(function(u){c.addEventListener('characteristicvaluechanged',function(e){onPkt(u,e)})})(c.uuid);dbg('Sub '+c.uuid.substring(4,8),'ok')}catch(e){}}if(c.properties.indicate){try{await c.startNotifications()}catch(e){}}}
+    await txr(ctrl,'h\n');await sl(200);
+    var prc=await txr(ctrl,'p1035\n');
+    if(prc!==0){dbg('p1035 rc='+prc+', trying p21','warn');await txr(ctrl,'p21\n')}else dbg('p1035 OK','ok');
+    await sl(300);S.pkts=0;
+    dbg('dc001 #1…','info');await txr(ctrl,'dc001\n');await sl(300);
+    dbg('dc001 #2…','info');await txr(ctrl,'dc001\n');await sl(500);
+    if(!S.pkts){dbg('"d" fallback…','warn');await txr(ctrl,'d\n');await sl(500)}
+    dbg('Pkts: '+S.pkts,S.pkts?'ok':'warn');
+    S.connected=1;S.start=Date.now();S.fS=0;S.fN=0;S.peak=0;S.drifts=0;S.history=[];S.cal=null;S._scoreLogs=0;S._sqLogCount=0;
+    S.zoneMs={deep:0,moderate:0,distracted:0,noSignal:0};S.lastZoneTick=0;S.paused=false;
+    IAF.detected=false;IAF.freq=10;IAF.history=[];IAF.confidence=0;
+    loadCalibration(); // Restore persisted calibration if available
+    btn.className='b bc on';dot.className='dot on';lbl.textContent='Disconnect';
+    showPauseBtn();
+    startLoop();setTimeout(function(){if(S.connected)dbg('Pkts: '+S.pkts,S.pkts?'ok':'err')},5000);
+  }catch(err){btn.className='b bc';dot.className='dot';lbl.textContent='Connect';
+    if(err.name==='NotFoundError')dbg('Cancelled','warn');else dbg('Error: '+err.message,'err')}
+}
+function onDc(){S.connected=0;document.getElementById('cBtn').className='b bc';document.getElementById('cDot').className='dot';document.getElementById('cLbl').textContent='Connect';dbg('Disconnected','warn')}
+function disconnect(){if(S.demo){S.demo=0;document.getElementById('dmBdg').classList.remove('on')}
+  if(S.ctrl&&S.device&&S.device.gatt&&S.device.gatt.connected)try{tx(S.ctrl,'h\n')}catch(e){}
+  setTimeout(function(){try{if(S.device&&S.device.gatt)S.device.gatt.disconnect()}catch(e){}},200);
+  saveSession(); // Persist session stats before clearing
+  S.connected=0;S.device=null;S.gatt=null;S.ctrl=null;S.start=null;S.pkts=0;S.fS=0;S.fN=0;S.peak=0;S.drifts=0;S.history=[];S.lowSt=null;S.cal=null;S._scoreLogs=0;
+  S.zoneMs={deep:0,moderate:0,distracted:0,noSignal:0};S.lastZoneTick=0;
+  IAF.detected=false;IAF.freq=10;IAF.history=[];IAF.confidence=0;
+  if(CAL.active)cancelCalibration();
+  for(var k in S.buf)S.buf[k]=[];for(var k in S.wf)S.wf[k]=[];
+  clrAlert();if(S.af)cancelAnimationFrame(S.af);if(bgTimer){clearInterval(bgTimer);bgTimer=null}
+  if(amb.active){amb.active=false;if(amb.timer){clearTimeout(amb.timer);amb.timer=null}if(amb.master)amb.master.gain.linearRampToValueAtTime(0,amb.ctx.currentTime+1);document.getElementById('sAmb').checked=false;document.getElementById('ambStatus').textContent='Off';document.getElementById('ambStatus').style.color='var(--t3)'}
+  document.getElementById('cBtn').className='b bc';document.getElementById('cDot').className='dot';document.getElementById('cLbl').textContent='Connect';
+  hidePauseBtn();
+  try{fetch('/focus-score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({score:-1,state:'disconnected',paused:false,timestamp:Date.now()})}).catch(function(){})}catch(e){}
+  document.getElementById('gV').innerHTML='&mdash;';document.getElementById('gB').textContent='STANDBY';document.getElementById('gB').style.background='#47556999';document.getElementById('gB').style.color='var(--t3)'}
+
+// ==================== DATA ====================
+function onPkt(uuid,event){
+  if(S.paused)return;
+  S.pkts++;var dv=event.target.value;
+  var bytes=new Uint8Array(dv.buffer);
+
+  if(S.pkts<=6){
+    dbg('MSG#'+S.pkts+' ['+bytes.length+'B]: '+Array.from(bytes).slice(0,28).map(function(b){return b.toString(16).padStart(2,'0')}).join(' ')+(bytes.length>28?'…':''),'ok');
+  }
+
+  // BLE MESSAGE contains one or more inner PACKETS
+  // Each packet: byte 0 = length, bytes 0-13 = header, bytes 14+ = data
+  // Packet header byte 9 = sensor type (pkt_id): 0x11=EEG4, 0x12=EEG8, 0x47=ACCGYRO, etc.
+  var offset=0;
+  while(offset<bytes.length){
+    if(offset+14>bytes.length)break; // Need at least 14-byte header
+    var pktLen=bytes[offset];
+    if(pktLen<14||offset+pktLen>bytes.length)break;
+
+    var pktId=bytes[offset+9]; // Sensor type tag
+
+    // Only process EEG packets (0x11 = EEG4ch, 0x12 = EEG8ch)
+    if(pktId===0x11||pktId===0x12){
+      var nCh=(pktId===0x11)?4:8;
+      var nSamp=(pktId===0x11)?4:2;
+      var dataStart=offset+14;
+      var dataLen=28; // Both EEG4 and EEG8 use 28 bytes of data
+
+      if(dataStart+dataLen<=offset+pktLen){
+        var eegBytes=bytes.slice(dataStart,dataStart+dataLen);
+        var samples=decodeEEG14bit(eegBytes,nCh,nSamp);
+
+        if(S.pkts<=4&&samples.length){
+          var mn=Infinity,mx2=-Infinity;
+          for(var si=0;si<samples.length;si++){for(var ci2=0;ci2<samples[si].length;ci2++){var v=samples[si][ci2];if(v<mn)mn=v;if(v>mx2)mx2=v}}
+          dbg('  EEG: '+nCh+'ch×'+nSamp+'samp, range '+mn.toFixed(2)+' to '+mx2.toFixed(2)+' µV','info');
+        }
+
+        // Push samples to channel buffers
+        var chNames=['tp9','af7','af8','tp10','aux1','aux2','aux3','aux4'];
+        for(var si=0;si<samples.length;si++){
+          for(var ci2=0;ci2<Math.min(nCh,4);ci2++){
+            var nm=chNames[ci2];
+            if(!S.buf[nm])S.buf[nm]=[];if(!S.wf[nm])S.wf[nm]=[];
+            S.buf[nm].push(samples[si][ci2]);
+            S.wf[nm].push(samples[si][ci2]);
+            if(S.buf[nm].length>BSZ)S.buf[nm].splice(0,S.buf[nm].length-BSZ);
+            if(S.wf[nm].length>WP)S.wf[nm].splice(0,S.wf[nm].length-WP);
+          }
+        }
+      }
+
+      // Also check for additional EEG subpackets after the first data block
+      var subOff=offset+14+dataLen;
+      while(subOff+5<offset+pktLen){ // TAG(1) + header(4) + data
+        var tag=bytes[subOff];
+        if(tag===0x11||tag===0x12){
+          var snCh=(tag===0x11)?4:8;
+          var snSamp=(tag===0x11)?4:2;
+          if(subOff+5+28<=offset+pktLen){
+            var subEeg=bytes.slice(subOff+5,subOff+5+28);
+            var subSamples=decodeEEG14bit(subEeg,snCh,snSamp);
+            for(var si2=0;si2<subSamples.length;si2++){
+              for(var ci3=0;ci3<Math.min(snCh,4);ci3++){
+                var nm2=chNames[ci3];
+                if(!S.buf[nm2])S.buf[nm2]=[];if(!S.wf[nm2])S.wf[nm2]=[];
+                S.buf[nm2].push(subSamples[si2][ci3]);
+                S.wf[nm2].push(subSamples[si2][ci3]);
+                if(S.buf[nm2].length>BSZ)S.buf[nm2].splice(0,S.buf[nm2].length-BSZ);
+                if(S.wf[nm2].length>WP)S.wf[nm2].splice(0,S.wf[nm2].length-WP);
+              }
+            }
+            subOff+=5+28;
+          }else break;
+        }else{
+          // Non-EEG subpacket — look up data length or skip
+          var sensorLens={0x34:30,0x35:40,0x36:40,0x47:36,0x53:24,0x88:188,0x98:20};
+          var sLen=sensorLens[tag];
+          if(sLen!==undefined){subOff+=5+sLen}else break;
+        }
+      }
+    }
+
+    offset+=pktLen;
+  }
+}
+
+// EEG_SCALE from OpenMuse: 1450.0 / 16383.0 ≈ 0.0885 µV/LSB
+var EEG_SCALE=1450.0/16383.0;
+
+function decodeEEG14bit(dataBytes,nChannels,nSamples){
+  // Convert bytes to bit array (LSB first — critical!)
+  var bits=[];
+  for(var i=0;i<Math.min(dataBytes.length,28);i++){
+    var b=dataBytes[i];
+    for(var bp=0;bp<8;bp++){bits.push((b>>bp)&1)}
+  }
+
+  // Extract 14-bit packed values
+  var samples=[];
+  for(var s=0;s<nSamples;s++){
+    var row=[];
+    for(var c=0;c<nChannels;c++){
+      var bitStart=(s*nChannels+c)*14;
+      var val=0;
+      for(var bi=0;bi<14;bi++){
+        if(bitStart+bi<bits.length&&bits[bitStart+bi]){val|=(1<<bi)}
+      }
+      row.push(val*EEG_SCALE);
+    }
+    samples.push(row);
+  }
+  return samples;
+}
+
+
+// ==================== SIGNAL PROCESSING ====================
+// ==================== IIR BANDPASS + 60Hz NOTCH FILTER ====================
+// 4th-order Butterworth bandpass: HP @1Hz, LP @50Hz
+// + 60Hz notch filter for US power line interference
+// Verified flat 2-30Hz within 0.75dB
+
+var IIR_HP=[0.9827947083,-1.9655894166,0.9827947083,-1.9652933726,0.9658854606];
+var IIR_LP=[0.1990398655,0.3980797310,0.1990398655,-0.4044849047,0.2006443667];
+// 60Hz notch (2nd-order, verified: -240dB at 60Hz, flat elsewhere)
+var IIR_NOTCH60=[0.9704989008,-0.1902510539,0.9704989008,-0.1901532522,0.9409000000];
+
+function applyIIR2(signal,c){
+  var N=signal.length,out=new Array(N);
+  var x1=0,x2=0,y1=0,y2=0;
+  for(var i=0;i<N;i++){
+    var x0=signal[i];
+    var y0=c[0]*x0+c[1]*x1+c[2]*x2-c[3]*y1-c[4]*y2;
+    out[i]=y0;x2=x1;x1=x0;y2=y1;y1=y0;
+  }
+  return out;
+}
+
+function applyBandpass(signal){
+  var s=applyIIR2(signal,IIR_HP);
+  s=applyIIR2(s,IIR_HP);  // 4th-order HP
+  s=applyIIR2(s,IIR_LP);
+  s=applyIIR2(s,IIR_LP);  // 4th-order LP
+  s=applyIIR2(s,IIR_NOTCH60); // 60Hz notch
+  return s;
+}
+
+var _filterLogged=false;
+
+// ==================== ARTIFACT REJECTION ====================
+// Detects eye blinks (large transients) and jaw clenches (EMG bursts)
+function rejectArtifacts(signal,fs){
+  var N=signal.length,clean=signal.slice();
+  var winSamp=Math.floor(fs*0.2); // 200ms windows
+  var artCount=0;
+  for(var i=0;i<N-winSamp;i+=Math.floor(winSamp/2)){
+    var end=Math.min(i+winSamp,N),mn=Infinity,mx=-Infinity;
+    for(var j=i;j<end;j++){if(clean[j]<mn)mn=clean[j];if(clean[j]>mx)mx=clean[j]}
+    if(mx-mn>150){ // >150µV peak-to-peak = artifact
+      for(var j=i;j<end;j++)clean[j]=0;
+      artCount++;
+    }
+  }
+  return{signal:clean,artifactRatio:artCount*winSamp/N};
+}
+
+// ==================== WELCH'S PSD METHOD ====================
+// Averages overlapping windowed FFT segments — reduces spectral variance
+function welchPSD(signal,fs,segLen,overlap){
+  var step=Math.floor(segLen*(1-overlap));
+  var nSegs=Math.floor((signal.length-segLen)/step)+1;
+  if(nSegs<1)return null;
+  var psdLen=Math.floor(segLen/2);
+  var psd=new Array(psdLen);for(var k=0;k<psdLen;k++)psd[k]=0;
+  for(var s=0;s<nSegs;s++){
+    var start=s*step,seg=new Array(segLen);
+    for(var i=0;i<segLen;i++)seg[i]=signal[start+i]*(0.5*(1-Math.cos(2*Math.PI*i/(segLen-1))));
+    var sp=fft(seg);
+    for(var k=0;k<Math.min(sp.length,psdLen);k++)psd[k]+=sp[k]*sp[k];
+  }
+  for(var k=0;k<psdLen;k++)psd[k]/=nSegs;
+  return{psd:psd,freqRes:fs/segLen,nSegments:nSegs};
+}
+
+// ==================== SPECTRAL ANALYSIS ====================
+function fft(s){var N=s.length,sp=[];for(var k=0;k<N/2;k++){var re=0,im=0;for(var n=0;n<N;n++){var a=2*Math.PI*k*n/N;re+=s[n]*Math.cos(a);im-=s[n]*Math.sin(a)}sp.push(Math.sqrt(re*re+im*im)/N)}return sp}
+
+// bpowFromPSD superseded by bpowFromPSD_IAF (with Individual Alpha Frequency adjustment)
+
+// ==================== COMPOSITE FOCUS METRIC ====================
+// Combines research-validated indices (more robust than single ratio):
+// 1. Beta/(Alpha+Theta) — engagement index (Pope et al., 1995)
+// 2. Beta/Theta — attention index (Monastra et al., 2005)
+// 3. Relative beta — proportion of total power in beta
+// 4. Alpha/Theta — alertness ratio
+function computeFocusMetrics(bp){
+  var total=bp.delta+bp.theta+bp.alpha+bp.beta+bp.gamma+0.0001;
+  var engagement=bp.beta/(bp.alpha+bp.theta+0.0001);
+  var attention=bp.beta/(bp.theta+0.0001);
+  var relBeta=bp.beta/total;
+  var alertness=bp.alpha/(bp.theta+0.0001);
+  // Weighted composite
+  return engagement*0.40+attention*0.25+relBeta*5.0*0.20+alertness*0.15;
+}
+
+// Signal quality
+function checkSignalQuality(buf){
+  if(!buf||buf.length<32)return{good:false,rms:0,reason:'insufficient data'};
+  var N=Math.min(buf.length,128),sa=buf.slice(-N);
+  var sum=0;for(var i=0;i<sa.length;i++)sum+=sa[i];var mean=sum/sa.length;
+  var varSum=0;for(var i=0;i<sa.length;i++){var d=sa[i]-mean;varSum+=d*d}
+  var std=Math.sqrt(varSum/sa.length);
+  if(std<0.3)return{good:false,rms:std,reason:'flat (std='+std.toFixed(1)+'µV)'};
+  if(std>300)return{good:false,rms:std,reason:'noisy (std='+std.toFixed(0)+'µV, no contact?)'};
+  if(mean<100||mean>1350)return{good:false,rms:std,reason:'railed (mean='+mean.toFixed(0)+'µV, std='+std.toFixed(1)+'µV)'};
+  if(std<1)return{good:false,rms:std,reason:'too quiet (std='+std.toFixed(2)+'µV)'};
+  return{good:true,rms:std,reason:'ok (std='+std.toFixed(1)+'µV, mean='+mean.toFixed(0)+'µV)'};
+}
+
+// ==================== INDIVIDUAL ALPHA FREQUENCY (IAF) ====================
+// Everyone's alpha peak is different (8.5-11.5Hz typically)
+// Detecting IAF and adjusting band boundaries improves accuracy significantly
+// IAF shifts all band boundaries: theta=IAF-6 to IAF-2, alpha=IAF-2 to IAF+2, etc.
+var IAF={detected:false,freq:10.0,history:[],confidence:0};
+
+function detectIAF(psdList){
+  // Average frontal PSDs and find peak in 7-13Hz range
+  if(!psdList.length)return;
+  var fr=psdList[0].freqRes;
+  var loIdx=Math.floor(7/fr),hiIdx=Math.ceil(13/fr);
+  if(loIdx>=hiIdx)return;
+
+  // Average PSDs
+  var avgPSD=new Array(psdList[0].psd.length);
+  for(var k=0;k<avgPSD.length;k++)avgPSD[k]=0;
+  for(var p=0;p<psdList.length;p++){
+    for(var k=0;k<Math.min(psdList[p].psd.length,avgPSD.length);k++){
+      avgPSD[k]+=psdList[p].psd[k];
+    }
+  }
+  for(var k=0;k<avgPSD.length;k++)avgPSD[k]/=psdList.length;
+
+  // Find peak in alpha range
+  var peakVal=-Infinity,peakIdx=loIdx;
+  for(var k=loIdx;k<=Math.min(hiIdx,avgPSD.length-1);k++){
+    if(avgPSD[k]>peakVal){peakVal=avgPSD[k];peakIdx=k}
+  }
+
+  var peakFreq=peakIdx*fr;
+
+  // Check peak is actually a peak (not just noise) — must be at least 1.5× the average
+  var avgInRange=0,cnt=0;
+  for(var k=loIdx;k<=Math.min(hiIdx,avgPSD.length-1);k++){avgInRange+=avgPSD[k];cnt++}
+  avgInRange/=(cnt||1);
+  var isPeak=peakVal>avgInRange*1.5;
+
+  if(isPeak){
+    IAF.history.push(peakFreq);
+    if(IAF.history.length>30)IAF.history.shift(); // Track last ~30 readings
+
+    // Median of recent readings for stability
+    var sorted=IAF.history.slice().sort(function(a,b){return a-b});
+    var median=sorted[Math.floor(sorted.length/2)];
+
+    // Compute confidence: std of recent readings (lower = more confident)
+    var iafSum=0;for(var i=0;i<IAF.history.length;i++)iafSum+=IAF.history[i];
+    var iafMean=iafSum/IAF.history.length;
+    var iafVar=0;for(var i=0;i<IAF.history.length;i++){var d=IAF.history[i]-iafMean;iafVar+=d*d}
+    var iafStd=Math.sqrt(iafVar/IAF.history.length);
+
+    IAF.freq=median;
+    IAF.confidence=Math.max(0,Math.min(1,1-iafStd/2)); // 0=uncertain, 1=stable
+    IAF.detected=IAF.history.length>=5&&IAF.confidence>0.3;
+
+    // Log IAF changes
+    if(!IAF._lastLog||(Date.now()-IAF._lastLog>30000)){
+      IAF._lastLog=Date.now();
+      dbg('IAF: '+IAF.freq.toFixed(1)+'Hz (confidence='+IAF.confidence.toFixed(2)+', n='+IAF.history.length+')'+(IAF.detected?' ACTIVE':''),'info');
+    }
+  }
+}
+
+function bpowFromPSD_IAF(psd,fr){
+  // Use IAF-adjusted band boundaries when available
+  // Standard: delta 1-4, theta 4-8, alpha 8-13, beta 13-30, gamma 30-50
+  // IAF-adjusted: theta IAF-6 to IAF-2, alpha IAF-2 to IAF+2, beta IAF+2 to 30
+  var B;
+  if(IAF.detected){
+    var a=IAF.freq;
+    B={
+      delta:[1,Math.max(2,a-6)],           // 1 to IAF-6
+      theta:[Math.max(2,a-6),Math.max(4,a-2)],  // IAF-6 to IAF-2
+      alpha:[Math.max(4,a-2),a+2],         // IAF-2 to IAF+2
+      beta:[a+2,30],                        // IAF+2 to 30
+      gamma:[30,50]                         // 30-50 (unchanged)
+    };
+  }else{
+    B={delta:[1,4],theta:[4,8],alpha:[8,13],beta:[13,30],gamma:[30,50]};
+  }
+
+  var p={};
+  for(var n in B){
+    var lo=Math.max(1,Math.floor(B[n][0]/fr));
+    var hi=Math.min(psd.length-1,Math.ceil(B[n][1]/fr));
+    var s=0;for(var i=lo;i<=hi;i++)s+=psd[i];
+    p[n]=s;
+  }
+  return p;
+}
+
+function proc(){
+  if(S.paused)return;
+  var chs=Object.keys(S.buf),tp={delta:0,theta:0,alpha:0,beta:0,gamma:0},vc=0,totalW=0;
+  var goodChs=0,totalChs=0,qualityReasons=[];
+  var allPSDs=[]; // Collect PSDs for IAF detection
+
+  // Frontal channel weights: AF7/AF8 (prefrontal cortex) are 2.5× more relevant
+  // to attention than TP9/TP10 (temporal cortex)
+  var chWeights={af7:2.5,af8:2.5,tp9:1.0,tp10:1.0};
+
+  if(!_filterLogged){_filterLogged=true;
+    dbg('Pipeline: DC > Butterworth 1-50Hz > 60Hz notch > artifact reject > Welch PSD > IAF detection > frontal-weighted composite metric','ok')}
+
+  for(var ci=0;ci<chs.length;ci++){
+    var chName=chs[ci];
+    var b=S.buf[chName];if(!b||b.length<192)continue;
+    totalChs++;
+    var sq=checkSignalQuality(b);
+    if(!sq.good){qualityReasons.push(chName+': '+sq.reason);continue}
+    goodChs++;
+
+    var sa=b.slice(-Math.min(b.length,512));
+
+    // Step 1: DC removal
+    var dcSum=0;for(var j=0;j<sa.length;j++)dcSum+=sa[j];var dc=dcSum/sa.length;
+    for(var j=0;j<sa.length;j++)sa[j]-=dc;
+
+    // Step 2: Bandpass + 60Hz notch
+    sa=applyBandpass(sa);
+
+    // Step 3: Discard IIR transient
+    if(sa.length>200)sa=sa.slice(50);
+
+    // Step 4: Artifact rejection
+    var ar=rejectArtifacts(sa,SR);
+    sa=ar.signal;
+    if(ar.artifactRatio>0.5){qualityReasons.push(chName+': >50% artifacts');continue}
+
+    // Step 5: Welch PSD
+    var welch=welchPSD(sa,SR,128,0.5);
+    if(!welch||welch.nSegments<2)continue;
+
+    // Store PSD for IAF detection (frontal channels only)
+    if(chName==='af7'||chName==='af8'){
+      allPSDs.push({psd:welch.psd,freqRes:welch.freqRes});
+    }
+
+    // Step 6: Use IAF-adjusted band boundaries if available
+    var pw=bpowFromPSD_IAF(welch.psd,welch.freqRes);
+
+    // Step 7: Apply frontal channel weighting
+    var w=chWeights[chName]||1.0;
+    for(var bn in tp)tp[bn]+=pw[bn]*w;
+    totalW+=w;vc++;
+  }
+
+  // ===== INDIVIDUAL ALPHA FREQUENCY (IAF) DETECTION =====
+  // Find peak frequency in 7-13Hz range from frontal channels
+  if(allPSDs.length>0){
+    detectIAF(allPSDs);
+  }
+
+  // Update signal quality state
+  S.sigQuality=goodChs>=2?'good':'poor';
+  S.sigGoodChs=goodChs;
+  S.sigTotalChs=totalChs;
+  S.sigReasons=qualityReasons;
+  // Periodic quality logging
+  if(!S._sqLogCount)S._sqLogCount=0;S._sqLogCount++;
+  if(S._sqLogCount<=3||S._sqLogCount%30===0){
+    dbg('Signal: '+goodChs+'/'+totalChs+' OK'+(qualityReasons.length?' | '+qualityReasons.join(', '):''),goodChs>0?'ok':'warn');
+    // Log channel stats
+    for(var ci2=0;ci2<chs.length;ci2++){var b2=S.buf[chs[ci2]];if(b2&&b2.length>=32){var sq2=checkSignalQuality(b2);dbg('  '+chs[ci2]+': rms='+sq2.rms.toFixed(1)+'µV '+sq2.reason,sq2.good?'ok':'warn')}}
+  }
+
+  // If no good channels, show NO SIGNAL
+  if(!vc||goodChs<2){
+    S.score=-1;
+    var now=Date.now();if(S.lastZoneTick){S.zoneMs.noSignal+=now-S.lastZoneTick}S.lastZoneTick=now;
+    S.history.push({t:Date.now(),s:-1});
+    var cut=Date.now()-HS*1000;while(S.history.length&&S.history[0].t<cut)S.history.shift();
+    return;
+  }
+
+  for(var bn in tp)tp[bn]/=(totalW||1);S.band=tp;
+
+  // ===== FOCUS SCORING =====
+  var totalPow=tp.delta+tp.theta+tp.alpha+tp.beta+tp.gamma;
+  if(totalPow<0.0001){S.score=-1;return}
+
+  // Composite focus metric (weighted blend of 4 research-validated indices)
+  var eng=computeFocusMetrics(tp);
+
+  // Clamp to realistic range (composite can be 0-8+, beyond 8 is artifact)
+  eng=Math.min(eng,8.0);
+
+  // Auto-calibration: track running engagement to adapt to user
+  if(!S.cal){S.cal={samples:0,ema:null,history:[],manualBaseline:null,manualRange:null}}
+  S.cal.samples++;
+  S.cal.history.push(eng);
+  if(S.cal.history.length>600)S.cal.history.shift();
+
+  // Manual calibration overrides auto
+  var p5,p95,range;
+  if(S.cal.manualBaseline!==null){
+    p5=S.cal.manualBaseline;
+    p95=S.cal.manualBaseline+S.cal.manualRange;
+    range=S.cal.manualRange;
+  }else if(S.cal.history.length>=30){
+    var sorted=S.cal.history.slice().sort(function(a,b){return a-b});
+    p5=sorted[Math.floor(sorted.length*0.1)];
+    p95=sorted[Math.floor(sorted.length*0.9)];
+    range=p95-p5;
+    if(range<0.5)range=0.5;
+  }else{
+    // Before calibration: conservative fixed mapping for composite metric
+    p5=0.3;p95=3.5;range=3.2;
+  }
+
+  var rawScore=((eng-p5)/range)*100;
+  rawScore=Math.max(0,Math.min(100,Math.round(rawScore)));
+
+  // EMA temporal smoothing — alpha=0.2 for ~5-sample memory (smoother, less jumpy)
+  var emaAlpha=0.2;
+  if(S.cal.ema===null)S.cal.ema=rawScore;
+  else S.cal.ema=emaAlpha*rawScore+(1-emaAlpha)*S.cal.ema;
+
+  S.score=Math.max(0,Math.min(100,Math.round(S.cal.ema)));
+
+  // Periodic diagnostics
+  if(!S._scoreLogs)S._scoreLogs=0;S._scoreLogs++;
+  if(S._scoreLogs<=5||S._scoreLogs%60===0){
+    dbg('Focus: eng='+eng.toFixed(2)+' raw='+rawScore+' smooth='+S.score+
+      ' [p10='+p5.toFixed(2)+' p90='+p95.toFixed(2)+' range='+range.toFixed(2)+
+      (S.cal.manualBaseline!==null?' MANUAL':'') +
+      (S.cal.history.length<30?' warmup '+S.cal.history.length+'/30':'')+']','info');
+  }
+
+  S.fN++;S.fS+=S.score;S.peak=Math.max(S.peak,S.score);
+  // Zone time tracking
+  var now=Date.now();
+  if(S.lastZoneTick){
+    var dt=now-S.lastZoneTick;
+    if(S.score>=70)S.zoneMs.deep+=dt;
+    else if(S.score>=40)S.zoneMs.moderate+=dt;
+    else S.zoneMs.distracted+=dt;
+  }
+  S.lastZoneTick=now;
+  S.history.push({t:Date.now(),s:S.score});var cut=Date.now()-HS*1000;while(S.history.length&&S.history[0].t<cut)S.history.shift();
+  chkAlert();updateGoal();
+}
+
+// ==================== PAUSE ====================
+function togglePause(){
+  S.paused=!S.paused;
+  var btn=document.getElementById('pauseBtn');
+  var bnr=document.getElementById('pBnr');
+  if(S.paused){
+    S.lastZoneTick=0;
+    S._pauseStart=Date.now(); // Track when pause started
+    if(S.alertOn)clrAlert();
+    btn.innerHTML='&#9654; Resume';
+    btn.classList.add('on');
+    bnr.classList.add('on');
+    dbg('Paused — all data collection, processing, and alerts suspended','info');
+    if(widgetWin&&!widgetWin.closed){try{
+      var wd=widgetWin.document;
+      wd.getElementById('sc').textContent='';
+      wd.getElementById('st').textContent='PAUSED';
+      wd.getElementById('orb').style.background='radial-gradient(circle,#f59e0b88,#f59e0b22)';
+      wd.getElementById('orb').style.boxShadow='0 0 40px #f59e0b30';
+    }catch(e){}}
+  }else{
+    // Accumulate paused duration for goal timer
+    if(S._pauseStart&&S.goal){
+      if(!S.goalPausedMs)S.goalPausedMs=0;
+      S.goalPausedMs+=Date.now()-S._pauseStart;
+    }
+    S._pauseStart=0;
+    // Clear stale buffers so first post-resume analysis uses only fresh data
+    for(var k in S.buf)S.buf[k]=[];
+    S.lastZoneTick=Date.now();
+    btn.innerHTML='&#9646;&#9646; Pause';
+    btn.classList.remove('on');
+    bnr.classList.remove('on');
+    dbg('Resumed — buffers cleared, collecting fresh data','ok');
+  }
+}
+
+function showPauseBtn(){document.getElementById('pauseBtn').style.display=''}
+function hidePauseBtn(){document.getElementById('pauseBtn').style.display='none';if(S.paused){S.paused=false;document.getElementById('pBnr').classList.remove('on')}}
+
+// ==================== ALERTS ====================
+function chkAlert(){if(S.score<0||S.paused)return;
+  var th=parseInt(document.getElementById('sTh').value)||30,du=parseInt(document.getElementById('sDu').value)||5;
+  if(!document.getElementById('sAl').checked){clrAlert();return}
+  if(S.score<th){if(!S.lowSt)S.lowSt=Date.now();else if(Date.now()-S.lowSt>du*1000&&!S.alertOn)fireA()}
+  else{S.lowSt=null;if(S.alertOn)clrAlert()}}
+function fireA(){S.alertOn=1;S.drifts++;document.getElementById('aOvl').classList.add('on');document.getElementById('aBnr').classList.add('on');document.getElementById('sD').textContent=S.drifts;if(document.getElementById('sSn').checked){playS();playWidgetDing()}flashWidget()}
+function clrAlert(){S.alertOn=0;document.getElementById('aOvl').classList.remove('on');document.getElementById('aBnr').classList.remove('on')}
+function playS(){try{var c=new(window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=440;o.type='sine';g.gain.value=.12;g.gain.exponentialRampToValueAtTime(.001,c.currentTime+.4);o.start();o.stop(c.currentTime+.4)}catch(e){}}
+
+// ==================== BASELINE CALIBRATION ====================
+// Guided 2-min baseline: 60s eyes-closed relaxation + 60s focused mental math
+// Voice-guided via Web Speech Synthesis API
+var CAL={active:false,phase:0,startTime:0,relaxedSamples:[],focusedSamples:[],timer:null,lastSpoken:0};
+
+var _voiceList=[];
+var _voiceReady=false;
+
+// Voice quality tiers — higher is better
+function voiceTier(v){
+  if(/Premium/i.test(v.name))return 5;
+  if(/Enhanced/i.test(v.name))return 4;
+  if(/Google.*Female/i.test(v.name))return 3;
+  if(/Samantha|Karen|Moira|Tessa|Fiona|Serena|Victoria|Kate|Ava|Zoe|Allison|Susan/i.test(v.name))return 2;
+  return 1;
+}
+
+function isEnglish(v){return /^en/i.test(v.lang)}
+function isFemale(v){return /female|Samantha|Karen|Moira|Tessa|Fiona|Serena|Victoria|Kate|Ava|Zoe|Allison|Susan|Google.*Female/i.test(v.name)}
+
+function loadVoices(){
+  var all=speechSynthesis.getVoices();
+  // Filter to English, sort by tier desc then female first
+  _voiceList=all.filter(isEnglish).sort(function(a,b){
+    var ta=voiceTier(a),tb=voiceTier(b);
+    if(ta!==tb)return tb-ta;
+    var fa=isFemale(a)?0:1,fb=isFemale(b)?0:1;
+    return fa-fb;
+  });
+
+  var sel=document.getElementById('voiceSel');
+  if(!sel||!_voiceList.length)return;
+  sel.innerHTML='';
+  for(var i=0;i<_voiceList.length;i++){
+    var v=_voiceList[i];
+    var tier=voiceTier(v);
+    var label=v.name;
+    if(tier>=5)label+=' ★★★';
+    else if(tier>=4)label+=' ★★';
+    else if(tier>=3)label+=' ★';
+    var opt=document.createElement('option');
+    opt.value=i;opt.textContent=label;
+    sel.appendChild(opt);
+  }
+
+  // Show quality tip
+  var best=_voiceList.length?voiceTier(_voiceList[0]):0;
+  var tip=document.getElementById('voiceTip');
+  if(tip){
+    if(best>=4){
+      tip.textContent='Using high-quality voice: '+_voiceList[0].name;
+      tip.style.color='var(--gn)';
+    }else{
+      tip.innerHTML='For much better voices: System Settings → Accessibility → Spoken Content → System Voice → Manage Voices → download <b>Ava (Premium)</b> or <b>Zoe (Premium)</b>, then reload this page';
+      tip.style.color='var(--yl)';
+    }
+  }
+
+  _voiceReady=true;
+  dbg('Voices loaded: '+_voiceList.length+' English voices, best="'+(_voiceList[0]?_voiceList[0].name:'none')+'" (tier '+best+')','info');
+}
+
+function getSelectedVoice(){
+  var sel=document.getElementById('voiceSel');
+  if(!sel||!_voiceList.length)return null;
+  var idx=parseInt(sel.value)||0;
+  return _voiceList[idx]||_voiceList[0]||null;
+}
+
+function testVoice(){
+  speak('Take a slow, deep breath in. And gently breathe out. Allow yourself to relax completely.');
+}
+
+function speak(text,rate,duringCal){
+  try{
+    if(!window.speechSynthesis)return;
+    speechSynthesis.cancel();
+    var voice=getSelectedVoice();
+    var chk=duringCal||false; // Only check CAL.active when called from calibration
+    var sentences=text.match(/[^.!?]+[.!?]?/g)||[text];
+    var delay=0;
+    for(var i=0;i<sentences.length;i++){
+      var s=sentences[i].trim();
+      if(!s)continue;
+      (function(phrase,d,c){
+        setTimeout(function(){
+          if(c&&!CAL.active)return; // Cancel queued speech if cal stopped
+          var u=new SpeechSynthesisUtterance(phrase);
+          u.rate=rate||0.78;
+          u.pitch=0.97;
+          u.volume=0.7;
+          if(voice)u.voice=voice;
+          speechSynthesis.speak(u);
+        },d);
+      })(s,delay,chk);
+      delay+=s.length*62+600;
+    }
+  }catch(e){}
+}
+
+// Pre-load voices
+if(window.speechSynthesis){
+  speechSynthesis.getVoices();
+  speechSynthesis.onvoiceschanged=function(){loadVoices()};
+  setTimeout(function(){if(window.speechSynthesis)loadVoices()},500);
+  setTimeout(function(){if(window.speechSynthesis)loadVoices()},2000);
+}
+
+function startCalibration(){
+  if(!S.connected&&!S.demo){dbg('Connect Muse first','warn');return}
+  if(CAL.active){cancelCalibration();return}
+
+  CAL.active=true;CAL.phase=0;CAL.startTime=Date.now();
+  CAL.relaxedSamples=[];CAL.focusedSamples=[];CAL.lastSpoken=0;
+  document.getElementById('calPanel').style.display='block';
+  document.getElementById('calBtn').textContent='Cancel';
+  document.getElementById('calBtn').className='b br on';
+  document.getElementById('calInfo').textContent='Calibrating…';
+  document.getElementById('calInfo').style.color='var(--cy2)';
+
+  // Initial spoken instruction with short delay
+  setTimeout(function(){
+    speak('Let\'s begin your calibration. Gently close your eyes. Take a slow, deep breath in. And slowly breathe out. Allow yourself to fully relax. This quiet phase lasts one minute.',0,true);
+    setCalPhase(1);
+  },500);
+
+  if(document.getElementById('sSn').checked)playCalTone(440,0.3);
+  CAL.timer=setInterval(updateCalibration,200);
+}
+
+function cancelCalibration(){
+  CAL.active=false;
+  if(CAL.timer){clearInterval(CAL.timer);CAL.timer=null}
+  if(window.speechSynthesis)speechSynthesis.cancel();
+  document.getElementById('calPanel').style.display='none';
+  document.getElementById('calBtn').textContent='Calibrate (2 min)';
+  document.getElementById('calBtn').className='b bc';
+  document.getElementById('calInfo').textContent='Cancelled — using auto mode';
+  document.getElementById('calInfo').style.color='var(--t3)';
+}
+
+function setCalPhase(phase){
+  CAL.phase=phase;
+  if(phase===1){
+    document.getElementById('calInstruction').textContent='Close your eyes and relax';
+    document.getElementById('calSubtext').textContent='Breathe slowly and deeply. Let your mind wander. (60 seconds)';
+  }else if(phase===2){
+    document.getElementById('calInstruction').textContent='Focus: count backwards from 300 by 7s';
+    document.getElementById('calSubtext').textContent='300, 293, 286, 279… Keep going mentally. (60 seconds)';
+    if(document.getElementById('sSn').checked)playCalTone(523,0.3);
+    speak('Open your eyes. Now, focus. Count backwards from 300 by sevens. 300. 293. 286. 279. Keep going in your head. Stay focused for 60 seconds.',0,true);
+  }
+}
+
+function updateCalibration(){
+  if(!CAL.active)return;
+  var elapsed=(Date.now()-CAL.startTime)/1000;
+  var totalDur=120;
+
+  // Collect engagement samples
+  if(S.score>=0&&S.cal&&S.cal.history.length>0){
+    var latestEng=S.cal.history[S.cal.history.length-1];
+    if(elapsed<60){CAL.relaxedSamples.push(latestEng)}
+    else{CAL.focusedSamples.push(latestEng)}
+  }
+
+  // Progress bar
+  var pct=Math.min(100,(elapsed/totalDur)*100);
+  document.getElementById('calFill').style.width=pct+'%';
+
+  // Timer
+  var remain=Math.max(0,totalDur-elapsed);
+  var rm=Math.floor(remain/60),rs=Math.floor(remain%60);
+  document.getElementById('calTimer').textContent=rm+':'+rs.toString().padStart(2,'0');
+
+  // Spoken updates at key moments (only speak once per milestone)
+  var secElapsed=Math.floor(elapsed);
+  if(secElapsed!==CAL.lastSpoken){
+    CAL.lastSpoken=secElapsed;
+
+    // Phase 1 updates
+    if(secElapsed===15)speak('Good. Keep your eyes closed. Relax your jaw. Let go of any tension.',0.85,true);
+    if(secElapsed===30)speak('Halfway through the relaxation phase. 30 seconds remaining. Stay relaxed.',0.85,true);
+    if(secElapsed===50)speak('10 seconds left in the relaxation phase. Get ready to focus.',0.85,true);
+    if(secElapsed===57)speak('3. 2. 1.',0.95,true);
+
+    // Phase transition
+    if(secElapsed===60&&CAL.phase===1)setCalPhase(2);
+
+    // Phase 2 updates
+    if(secElapsed===75)speak('Keep counting. Stay focused.',0.85,true);
+    if(secElapsed===90)speak('Halfway through the focus phase. 30 seconds remaining.',0.85,true);
+    if(secElapsed===110)speak('Almost done. 10 seconds left.',0.85,true);
+    if(secElapsed===117)speak('3. 2. 1.',0.95,true);
+  }
+
+  // Phase color
+  document.getElementById('calFill').style.background=CAL.phase===1?'var(--pu)':'var(--cy)';
+
+  if(elapsed>=totalDur){finishCalibration()}
+}
+
+function finishCalibration(){
+  CAL.active=false;
+  if(CAL.timer){clearInterval(CAL.timer);CAL.timer=null}
+  document.getElementById('calPanel').style.display='none';
+  document.getElementById('calBtn').textContent='Recalibrate';
+  document.getElementById('calBtn').className='b bc';
+
+  if(CAL.relaxedSamples.length<5||CAL.focusedSamples.length<5){
+    document.getElementById('calInfo').textContent='Insufficient data — using auto mode';
+    document.getElementById('calInfo').style.color='var(--rd)';
+    speak('Calibration did not get enough data. Please check your headband fit and try again.');
+    dbg('Calibration failed: relaxed='+CAL.relaxedSamples.length+' focused='+CAL.focusedSamples.length+' samples','err');
+    return;
+  }
+
+  // Compute median of relaxed and focused states
+  var rSorted=CAL.relaxedSamples.slice().sort(function(a,b){return a-b});
+  var fSorted=CAL.focusedSamples.slice().sort(function(a,b){return a-b});
+  var relaxedMedian=rSorted[Math.floor(rSorted.length/2)];
+  var focusedMedian=fSorted[Math.floor(fSorted.length/2)];
+
+  // Use 10th percentile of relaxed as baseline, 90th of focused as ceiling
+  var baseline=rSorted[Math.floor(rSorted.length*0.1)];
+  var ceiling=fSorted[Math.floor(fSorted.length*0.9)];
+  var calRange=ceiling-baseline;
+
+  if(calRange<0.2){
+    document.getElementById('calInfo').textContent='Range too narrow (relaxed≈focused) — using auto mode';
+    document.getElementById('calInfo').style.color='var(--yl)';
+    speak('Calibration range was too narrow. Your relaxed and focused states were too similar. Try again, and make sure to fully relax in phase one and concentrate hard in phase two.');
+    dbg('Calibration range too narrow: relaxed='+relaxedMedian.toFixed(2)+' focused='+focusedMedian.toFixed(2),'warn');
+    return;
+  }
+
+  // Apply calibration to scoring system
+  if(S.cal){
+    S.cal.manualBaseline=baseline;
+    S.cal.manualRange=calRange;
+  }
+
+  document.getElementById('calInfo').textContent='Calibrated! Relaxed='+relaxedMedian.toFixed(2)+' Focused='+focusedMedian.toFixed(2)+' (range='+calRange.toFixed(2)+')';
+  document.getElementById('calInfo').style.color='var(--gn)';
+
+  // Show IAF if detected
+  if(IAF.detected){
+    document.getElementById('iafDisplay').style.display='';
+    document.getElementById('iafValue').textContent=IAF.freq.toFixed(1)+' Hz (confidence '+Math.round(IAF.confidence*100)+'%)';
+  }
+
+  if(document.getElementById('sSn').checked)playCalTone(660,0.4);
+  speak('Calibration complete. Your personal baseline has been set. Focus scores are now calibrated to your brain.'+(IAF.detected?' Your individual alpha frequency is '+IAF.freq.toFixed(1)+' hertz.':''));
+  dbg('Calibration complete: baseline='+baseline.toFixed(2)+' ceiling='+ceiling.toFixed(2)+' range='+calRange.toFixed(2)+' relaxedMed='+relaxedMedian.toFixed(2)+' focusedMed='+focusedMedian.toFixed(2),'ok');
+  dbg('  Relaxed samples: '+CAL.relaxedSamples.length+', Focused samples: '+CAL.focusedSamples.length,'info');
+  if(IAF.detected)dbg('  IAF: '+IAF.freq.toFixed(1)+'Hz','info');
+}
+
+function playCalTone(freq,dur){
+  try{var c=new(window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();
+    o.connect(g);g.connect(c.destination);o.frequency.value=freq;o.type='sine';
+    g.gain.value=0.1;g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+dur);
+    o.start();o.stop(c.currentTime+dur)}catch(e){}
+}
+
+// ==================== TIMED GOALS ====================
+function toggleGoal(){
+  if(S.goal){S.goal=0;finishGoal();return}
+  S.goal=1;S.goalStart=Date.now();S.goalDur=parseInt(document.getElementById('goalDur').value)||25;
+  S.goalTarget=parseInt(document.getElementById('goalLevel').value)||70;S.goalSamples=[];S.goalInZone=0;S.goalPausedMs=0;
+  document.getElementById('goalPanel').style.display='block';document.getElementById('goalPanel').classList.add('goal-active');
+  document.getElementById('goalBtn').textContent='Stop Goal';document.getElementById('goalBtn').className='b br on';
+  document.getElementById('goalTarget').textContent=S.goalTarget;
+}
+function updateGoal(){
+  if(!S.goal||S.score<0)return;
+  S.goalSamples.push(S.score);if(S.score>=S.goalTarget)S.goalInZone++;
+  var elapsed=(Date.now()-S.goalStart-(S.goalPausedMs||0))/1000,total=S.goalDur*60,remain=Math.max(0,total-elapsed);
+  var pct=Math.min(100,(elapsed/total)*100);
+  document.getElementById('goalFill').style.width=pct+'%';
+  var rm=Math.floor(remain/60),rs=Math.floor(remain%60);
+  document.getElementById('goalTimer').textContent=rm+':'+rs.toString().padStart(2,'0');
+  var avg=S.goalSamples.length?Math.round(S.goalSamples.reduce(function(a,b){return a+b},0)/S.goalSamples.length):0;
+  document.getElementById('goalAvg').textContent=avg+'%';
+  var zPct=S.goalSamples.length?Math.round(S.goalInZone/S.goalSamples.length*100):0;
+  document.getElementById('goalZone').textContent=zPct+'%';
+  document.getElementById('goalFill').style.background=zPct>=70?'var(--gn)':zPct>=40?'var(--yl)':'var(--rd)';
+  if(elapsed>=total){S.goal=0;finishGoal()}
+}
+function finishGoal(){
+  document.getElementById('goalPanel').classList.remove('goal-active');document.getElementById('goalBtn').textContent='Start Goal';document.getElementById('goalBtn').className='b bc';
+  if(!S.goalSamples.length)return;
+  var avg=Math.round(S.goalSamples.reduce(function(a,b){return a+b},0)/S.goalSamples.length);
+  var zPct=Math.round(S.goalInZone/S.goalSamples.length*100);
+  var grade=zPct>=90?'A+':zPct>=80?'A':zPct>=70?'B+':zPct>=60?'B':zPct>=50?'C':zPct>=40?'D':'F';
+  var gCol=zPct>=70?'var(--gn)':zPct>=40?'var(--yl)':'var(--rd)';
+  document.getElementById('rptGrade').textContent=grade;document.getElementById('rptGrade').style.color=gCol;
+  var dur=Math.round((Date.now()-S.goalStart)/60000);
+  document.getElementById('rptDetails').innerHTML='Duration: '+dur+' min<br>Average Focus: '+avg+'%<br>Time in Zone ('+S.goalTarget+'+): '+zPct+'%<br>Peak Focus: '+Math.max.apply(null,S.goalSamples)+'%<br>Samples: '+S.goalSamples.length;
+  document.getElementById('rptOvl').classList.add('on');
+  if(document.getElementById('sSn').checked){try{var c=new(window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=660;o.type='sine';g.gain.value=.15;g.gain.exponentialRampToValueAtTime(.001,c.currentTime+.6);o.start();o.stop(c.currentTime+.6)}catch(e){}}
+}
+function closeReport(){document.getElementById('rptOvl').classList.remove('on')}
+
+// ==================== AMBIENT AUDIO ====================
+// Generative music engine — focus controls DENSITY and richness, not just pitch
+var amb={ctx:null,active:false,master:null,reverb:null,delay:null,score:50,timer:null,noteQ:[]};
+
+// Solfeggio frequencies — ancient healing tones
+var SOLFEGGIO=[174.00,285.00,396.00,417.00,432.00,528.00,639.00,741.00,852.00,963.00];
+
+// Note pools: each style has notes; focus determines how many play simultaneously
+var STYLES={
+  handpan:{
+    notes:[146.83,164.81,174.61,220,233.08,293.66,329.63,349.23,440,466.16,587.33,659.26,698.46,880,932.33,1174.66],
+    type:'perc'  // percussive attack
+  },
+  forest:{
+    notes:[329.63,392.00,440,493.88,523.25,659.26,783.99,880,987.77,1046.50,1318.51,1479.98,1760,2093.00],
+    type:'chirp'
+  },
+  ambient:{
+    notes:[130.81,174.61,196.00,261.63,349.23,392.00,523.25,698.46,783.99,1046.50],
+    type:'pad'
+  },
+  zen:{
+    notes:[164.81,174.61,220,246.94,293.66,329.63,349.23,440,493.88,587.33,659.26,698.46,880],
+    type:'bell'
+  },
+  solfeggio:{
+    notes:SOLFEGGIO,
+    type:'solf'
+  }
+};
+
+function initAudio(){
+  if(amb.ctx)return;
+  amb.ctx=new(window.AudioContext||window.webkitAudioContext)();
+  var ctx=amb.ctx;
+  amb.master=ctx.createGain();amb.master.gain.value=0;amb.master.connect(ctx.destination);
+  // Lush reverb
+  var rl=ctx.sampleRate*3,rb=ctx.createBuffer(2,rl,ctx.sampleRate);
+  for(var ch=0;ch<2;ch++){var d=rb.getChannelData(ch);for(var i=0;i<rl;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/rl,2.2)*(i<ctx.sampleRate*.05?2.5:1)}
+  amb.reverb=ctx.createConvolver();amb.reverb.buffer=rb;
+  var rg=ctx.createGain();rg.gain.value=0.5;amb.reverb.connect(rg);rg.connect(amb.master);
+  // Delay
+  amb.delay=ctx.createDelay(1);amb.delay.delayTime.value=0.37;
+  var df=ctx.createGain();df.gain.value=0.25;amb.delay.connect(df);df.connect(amb.delay);
+  var dg=ctx.createGain();dg.gain.value=0.2;amb.delay.connect(dg);dg.connect(amb.master);
+  // Dry
+  amb.dry=ctx.createGain();amb.dry.gain.value=0.35;amb.dry.connect(amb.master);
+  // Bus
+  amb.bus=ctx.createGain();amb.bus.gain.value=1;
+  amb.bus.connect(amb.reverb);amb.bus.connect(amb.delay);amb.bus.connect(amb.dry);
+}
+
+function playTone(freq,type,vel){
+  if(!amb.ctx||!amb.active)return;
+  var ctx=amb.ctx,t=ctx.currentTime,v=vel;
+  if(type==='perc'){
+    // Handpan — percussive with harmonics
+    var o=ctx.createOscillator();o.type='sine';o.frequency.value=freq;
+    var h=ctx.createOscillator();h.type='sine';h.frequency.value=freq*2.01;
+    var h2=ctx.createOscillator();h2.type='sine';h2.frequency.value=freq*3.99;
+    var g=ctx.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v*.22,t+.01);
+    g.gain.exponentialRampToValueAtTime(v*.07,t+.3);g.gain.exponentialRampToValueAtTime(.001,t+3.5);
+    var gh=ctx.createGain();gh.gain.value=v*.05;var gh2=ctx.createGain();gh2.gain.value=v*.02;
+    o.connect(g);h.connect(gh);h2.connect(gh2);gh.connect(g);gh2.connect(g);g.connect(amb.bus);
+    o.start(t);h.start(t);h2.start(t);o.stop(t+4);h.stop(t+4);h2.stop(t+4);
+  }else if(type==='chirp'){
+    // Bird chirp
+    var o=ctx.createOscillator();o.type='sine';
+    o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(freq*1.15,t+.05);
+    o.frequency.exponentialRampToValueAtTime(freq*.98,t+.15);
+    var g=ctx.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v*.15,t+.02);
+    g.gain.exponentialRampToValueAtTime(.001,t+.5);
+    o.connect(g);g.connect(amb.bus);o.start(t);o.stop(t+.6);
+    // Response chirp sometimes
+    if(Math.random()>.4){var o2=ctx.createOscillator();o2.type='sine';
+      o2.frequency.setValueAtTime(freq*1.05,t+.18);o2.frequency.exponentialRampToValueAtTime(freq*1.22,t+.23);
+      var g2=ctx.createGain();g2.gain.setValueAtTime(0,t+.18);g2.gain.linearRampToValueAtTime(v*.1,t+.2);
+      g2.gain.exponentialRampToValueAtTime(.001,t+.5);
+      o2.connect(g2);g2.connect(amb.bus);o2.start(t+.18);o2.stop(t+.55)}
+  }else if(type==='pad'){
+    // Ambient pad — slow swell
+    var o1=ctx.createOscillator();o1.type='sine';o1.frequency.value=freq;
+    var o2=ctx.createOscillator();o2.type='triangle';o2.frequency.value=freq*1.003;
+    var fl=ctx.createBiquadFilter();fl.type='lowpass';fl.frequency.value=freq*2.5;fl.Q.value=.7;
+    var g=ctx.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v*.12,t+.8);
+    g.gain.setValueAtTime(v*.12,t+2.5);g.gain.exponentialRampToValueAtTime(.001,t+5);
+    o1.connect(fl);o2.connect(fl);fl.connect(g);g.connect(amb.bus);
+    o1.start(t);o2.start(t);o1.stop(t+5.5);o2.stop(t+5.5);
+  }else if(type==='bell'){
+    // Zen bell
+    var o=ctx.createOscillator();o.type='sine';o.frequency.value=freq;
+    var h=ctx.createOscillator();h.type='sine';h.frequency.value=freq*2.76;
+    var h2=ctx.createOscillator();h2.type='sine';h2.frequency.value=freq*5.04;
+    var g=ctx.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v*.18,t+.005);
+    g.gain.exponentialRampToValueAtTime(v*.04,t+.8);g.gain.exponentialRampToValueAtTime(.001,t+4);
+    var gh=ctx.createGain();gh.gain.value=v*.04;var gh2=ctx.createGain();gh2.gain.value=v*.015;
+    o.connect(g);h.connect(gh);h2.connect(gh2);gh.connect(g);gh2.connect(g);g.connect(amb.bus);
+    o.start(t);h.start(t);h2.start(t);o.stop(t+4.5);h2.stop(t+4.5);h.stop(t+4.5);
+  }else if(type==='solf'){
+    // Solfeggio — pure clean sine with gentle shimmer
+    var o=ctx.createOscillator();o.type='sine';o.frequency.value=freq;
+    var o2=ctx.createOscillator();o2.type='sine';o2.frequency.value=freq*1.001; // Gentle beating
+    var g=ctx.createGain();g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(v*.16,t+.4);
+    g.gain.setValueAtTime(v*.16,t+2);
+    g.gain.exponentialRampToValueAtTime(.001,t+5);
+    o.connect(g);o2.connect(g);g.connect(amb.bus);
+    o.start(t);o2.start(t);o.stop(t+5.5);o2.stop(t+5.5);
+  }
+}
+
+function scheduleNotes(){
+  if(!amb.active)return;
+  if(S.paused){amb.timer=setTimeout(scheduleNotes,1000);return} // Check again in 1s
+  var style=document.getElementById('ambStyle').value;
+  var cfg=STYLES[style]||STYLES.handpan;
+  var sc=amb.score,notes=cfg.notes,type=cfg.type;
+  var vol=(parseInt(document.getElementById('ambVol').value)||30)/100;
+
+  // ===== FOCUS CONTROLS DENSITY =====
+  // Focused (70-100): many simultaneous notes, rich layering, moderate tempo
+  // Moderate (40-69): medium density, some harmony
+  // Low (0-39): sparse single notes, slower
+  var notesCount,baseInterval,registerBias;
+  if(sc>=70){
+    notesCount=3+Math.floor(Math.random()*3); // 3-5 notes per event
+    baseInterval=2000+Math.random()*1500;       // Note event every 2-3.5s
+    registerBias=0.6; // Bias toward upper notes
+  }else if(sc>=40){
+    notesCount=1+Math.floor(Math.random()*2);   // 1-2 notes
+    baseInterval=3000+Math.random()*2000;        // Every 3-5s
+    registerBias=0.35;
+  }else{
+    notesCount=1;                                 // Single note
+    baseInterval=4000+Math.random()*3000;         // Every 4-7s
+    registerBias=0.1; // Lower register
+  }
+
+  // Pick notes with register bias
+  for(var i=0;i<notesCount;i++){
+    var idx=Math.floor((registerBias+Math.random()*(1-registerBias))*notes.length);
+    idx=Math.max(0,Math.min(notes.length-1,idx));
+    var freq=notes[idx];
+    var noteVol=vol*(0.5+Math.random()*0.5)*(i===0?1:0.6); // First note louder
+    var delay=i*(.1+Math.random()*.25); // Stagger slightly
+
+    // For solfeggio, label the frequency
+    if(type==='solf'&&i===0){
+      var sfNames=['174 Hz','285 Hz','396 Hz','417 Hz','432 Hz','528 Hz','639 Hz','741 Hz','852 Hz','963 Hz'];
+      var sfIdx=SOLFEGGIO.indexOf(freq);
+      if(sfIdx>=0)document.getElementById('ambStatus').textContent=(sc>=70?'▲ ':'●')+sfNames[sfIdx];
+    }
+
+    setTimeout(function(f,v2){return function(){playTone(f,type,v2)}}(freq,noteVol),delay*1000);
+  }
+
+  // For forest: extra scattered chirps when focused
+  if(type==='chirp'&&sc>=60){
+    var extraChirps=Math.floor(Math.random()*(sc>=70?3:1));
+    for(var j=0;j<extraChirps;j++){
+      var cf=notes[Math.floor(Math.random()*notes.length)];
+      var cd=0.5+Math.random()*1.5;
+      setTimeout(function(f){return function(){playTone(f,'chirp',vol*0.3)}}(cf),cd*1000);
+    }
+  }
+
+  // For handpan: focused gets ghost notes (quiet echoes)
+  if(type==='perc'&&sc>=65){
+    var ghosts=Math.floor(Math.random()*2)+1;
+    for(var k=0;k<ghosts;k++){
+      var gf=notes[Math.floor(Math.random()*notes.length)];
+      var gd=0.8+Math.random()*1.2;
+      setTimeout(function(f){return function(){playTone(f,'perc',vol*0.15)}}(gf),gd*1000);
+    }
+  }
+
+  amb.timer=setTimeout(scheduleNotes,baseInterval);
+}
+
+function toggleAmbient(){
+  var on=document.getElementById('sAmb').checked;
+  if(on){
+    initAudio();if(amb.ctx.state==='suspended')amb.ctx.resume();
+    amb.active=true;
+    var vol=(parseInt(document.getElementById('ambVol').value)||30)/100;
+    amb.master.gain.linearRampToValueAtTime(vol*.5,amb.ctx.currentTime+.5);
+    scheduleNotes();
+    document.getElementById('ambStatus').textContent='Playing';
+    document.getElementById('ambStatus').style.color='var(--gn)';
+  }else{
+    amb.active=false;if(amb.timer){clearTimeout(amb.timer);amb.timer=null}
+    if(amb.master)amb.master.gain.linearRampToValueAtTime(0,amb.ctx.currentTime+1);
+    document.getElementById('ambStatus').textContent='Off';
+    document.getElementById('ambStatus').style.color='var(--t3)';
+  }
+}
+function updateAmbientVol(){
+  if(!amb.ctx||!amb.active)return;
+  var vol=(parseInt(document.getElementById('ambVol').value)||30)/100;
+  amb.master.gain.linearRampToValueAtTime(vol*.5,amb.ctx.currentTime+.3);
+}
+function updateAmbientStyle(){}
+function updateAmbientTone(focusScore){
+  if(!amb.active)return;amb.score=focusScore;
+  var lbl=focusScore>=70?'Focused ▲':focusScore>=40?'Moderate ●':'Low ▼';
+  document.getElementById('ambStatus').textContent=lbl;
+  document.getElementById('ambStatus').style.color=focusScore>=70?'var(--gn)':focusScore>=40?'var(--yl)':'var(--rd)';
+}
+
+// ==================== UI ====================
+function updateUI(){
+  var sc=S.score,co,gw,bt,bg,bc2,noSig=(sc===-1);
+
+  if(noSig){
+    co='var(--t3)';gw='#47556910';bt='NO SIGNAL';bg='#47556930';bc2='var(--t3)';sc=0;
+  } else if(S.paused){
+    co='var(--yl)';gw='#f59e0b10';bt='PAUSED';bg='#f59e0b25';bc2='#f59e0b';
+  } else if(sc>=70){co='var(--gn)';gw='#10b98115';bt='DEEP FOCUS';bg='#10b98125';bc2='#10b981'}
+  else if(sc>=40){co='var(--yl)';gw='#f59e0b10';bt='MODERATE';bg='#f59e0b25';bc2='#f59e0b'}
+  else{co='var(--rd)';gw='#ef444410';bt='DISTRACTED';bg='#ef444425';bc2='#ef4444'}
+
+  var gf=document.getElementById('gF');
+  gf.style.strokeDashoffset=noSig?310:(310-(sc/100)*310);
+  gf.setAttribute('stroke',co);
+  document.getElementById('gV').textContent=noSig?'—':sc;
+  document.getElementById('gV').style.color=co;
+  document.getElementById('fCard').style.setProperty('--gw',gw);
+  var bd=document.getElementById('gB');bd.textContent=bt;bd.style.background=bg;bd.style.color=bc2;
+
+  // Signal quality indicator below badge
+  var sqTxt='';
+  if(S.sigQuality==='poor'&&S.sigReasons&&S.sigReasons.length){sqTxt=S.sigGoodChs+'/'+S.sigTotalChs+' channels — '+S.sigReasons[0]}
+  else if(S.sigQuality==='good'){sqTxt=S.sigGoodChs+'/'+S.sigTotalChs+' channels OK'}
+  var sqEl=document.getElementById('sigQ');
+  if(sqEl){sqEl.textContent=sqTxt;sqEl.style.color=S.sigQuality==='good'?'var(--gn)':'var(--rd)'}
+
+  // Show IAF when detected (even without calibration)
+  if(IAF.detected){
+    document.getElementById('iafDisplay').style.display='';
+    document.getElementById('iafValue').textContent=IAF.freq.toFixed(1)+' Hz (confidence '+Math.round(IAF.confidence*100)+'%)';
+  }
+
+  // Only update audio if signal is good
+  if(!noSig)updateAmbientTone(S.score);
+  // No-signal: just let existing notes ring out naturally
+
+  var mx=Math.max(S.band.delta,S.band.theta,S.band.alpha,S.band.beta,S.band.gamma,.001);
+  var bm={D:'delta',T:'theta',A:'alpha',Be:'beta',G:'gamma'};
+  for(var k in bm){var pc=noSig?0:(S.band[bm[k]]/mx)*100;document.getElementById('b'+k).style.width=pc+'%';document.getElementById('v'+k).textContent=noSig?'—':pc.toFixed(0)+'%'}
+  document.querySelectorAll('.btgt').forEach(function(inp){var b=inp.dataset.band;document.getElementById('t'+b).style.left=Math.min(parseInt(inp.value)||0,100)+'%'});
+  if(S.fN)document.getElementById('sA').textContent=Math.round(S.fS/S.fN);
+  document.getElementById('sP').textContent=S.peak||'\u2014';
+  if(S.start){var el=Math.floor((Date.now()-S.start)/1000),ts=Math.floor(el/60)+':'+(el%60).toString().padStart(2,'0');document.getElementById('sT').textContent=ts;document.getElementById('miniTm').textContent=ts}
+
+  // Zone time display
+  var zt=S.zoneMs,ztTotal=zt.deep+zt.moderate+zt.distracted;
+  if(ztTotal>0){
+    var dpct=Math.round(zt.deep/ztTotal*100),mpct=Math.round(zt.moderate/ztTotal*100),rpct=100-dpct-mpct;
+    document.getElementById('zbDeep').style.width=dpct+'%';
+    document.getElementById('zbMod').style.width=mpct+'%';
+    document.getElementById('zbDist').style.width=rpct+'%';
+    document.getElementById('zdP').textContent=dpct;document.getElementById('zmP').textContent=mpct;document.getElementById('zrP').textContent=rpct;
+    var fmtMs=function(ms){var s=Math.floor(ms/1000),m=Math.floor(s/60);return m+':'+(s%60).toString().padStart(2,'0')};
+    document.getElementById('zdT').textContent=fmtMs(zt.deep);
+    document.getElementById('zmT').textContent=fmtMs(zt.moderate);
+    document.getElementById('zrT').textContent=fmtMs(zt.distracted);
+  }
+
+  // Mini mode
+  document.getElementById('miniSc').textContent=noSig?'—':S.score;
+  var oc=noSig?'#475569':S.score>=70?'#10b981':S.score>=40?'#f59e0b':'#ef4444';
+  document.getElementById('miniOrb').style.background='radial-gradient(circle,'+oc+(noSig?'44,'+oc+'22':'dd,'+oc+'44')+')';
+  document.getElementById('miniOrb').style.boxShadow='0 0 70px '+oc+'60';
+  document.getElementById('miniLb').textContent=bt;
+  // Update widget window directly
+  if(widgetWin&&!widgetWin.closed){try{
+    var wd=widgetWin.document;
+    wd.getElementById('sc').textContent=noSig?'—':S.score;
+    wd.getElementById('st').textContent=bt;
+    wd.getElementById('tm').textContent=document.getElementById('sT').textContent;
+    wd.getElementById('av').textContent=S.fN?Math.round(S.fS/S.fN):'—';
+
+    // Rich color gradient with many distinct stops:
+    // 0-10: deep crimson (#991b1b)  → 15: red (#dc2626)
+    // 20: red-orange (#ea580c) → 30: orange (#f97316) → 40: amber (#f59e0b)
+    // 50: yellow (#eab308) → 60: lime (#84cc16) → 70: green (#22c55e)
+    // 80: emerald (#10b981) → 90: teal (#14b8a6) → 100: cyan (#06b6d4)
+    var wc,wc2;
+    if(noSig){wc='#475569';wc2='#0a0e17'}
+    else{
+      var s=S.score;
+      // Multi-stop color lookup with interpolation
+      var stops=[[0,'#991b1b'],[12,'#dc2626'],[22,'#ea580c'],[32,'#f97316'],[42,'#f59e0b'],
+                 [52,'#eab308'],[60,'#84cc16'],[70,'#22c55e'],[80,'#10b981'],[90,'#14b8a6'],[100,'#06b6d4']];
+      // Find surrounding stops
+      var lo=stops[0],hi=stops[stops.length-1];
+      for(var si=0;si<stops.length-1;si++){
+        if(s>=stops[si][0]&&s<=stops[si+1][0]){lo=stops[si];hi=stops[si+1];break}
+      }
+      // Interpolate RGB between stops
+      var f=(hi[0]===lo[0])?0:(s-lo[0])/(hi[0]-lo[0]);
+      var c1=hexToRgb(lo[1]),c2=hexToRgb(hi[1]);
+      var r=Math.round(c1[0]+(c2[0]-c1[0])*f);
+      var g=Math.round(c1[1]+(c2[1]-c1[1])*f);
+      var b=Math.round(c1[2]+(c2[2]-c1[2])*f);
+      wc='rgb('+r+','+g+','+b+')';
+      // Dim version for body background tint
+      wc2='rgb('+Math.round(r*.08)+','+Math.round(g*.08)+','+Math.round(b*.08)+')';
+    }
+    wd.getElementById('orb').style.background='radial-gradient(circle,'+wc+' 0%,rgba(0,0,0,0.7) 100%)';
+    wd.getElementById('orb').style.boxShadow='0 0 '+(noSig?20:(50+Math.round(S.score/2)))+'px '+wc+', 0 0 '+(noSig?5:(15+Math.round(S.score/5)))+'px '+wc;
+    if(!S.alertOn)wd.body.style.background=wc2; // Subtle body tint (not during alert animation)
+
+    if(S.goal){wd.getElementById('gl').textContent='Goal: '+S.goalTarget+'+ | '+document.getElementById('goalTimer').textContent+' left | zone '+document.getElementById('goalZone').textContent}
+    else{wd.getElementById('gl').textContent=noSig?'':''}
+    // Alert state
+    var driftEl=wd.getElementById('drift');
+    if(driftEl){
+      if(S.alertOn){driftEl.classList.add('on');wd.body.classList.add('alert');wd.body.style.background=''}
+      else{driftEl.classList.remove('on');wd.body.classList.remove('alert')}
+    }
+  }catch(e){}}
+}
+
+function drawWF(){
+  var cv=document.getElementById('wfC'),cx=cv.getContext('2d'),dp=window.devicePixelRatio||1;
+  cv.width=cv.clientWidth*dp;cv.height=cv.clientHeight*dp;cx.scale(dp,dp);
+  var w=cv.clientWidth,h=cv.clientHeight;cx.clearRect(0,0,w,h);
+  if(S.paused){
+    cx.fillStyle='#f59e0b';cx.globalAlpha=0.3;cx.font='13px "DM Mono",monospace';
+    cx.textAlign='center';cx.fillText('PAUSED',w/2,h/2+5);cx.globalAlpha=1;return;
+  }
+  var cols=['#06b6d4','#8b5cf6','#ec4899','#10b981'],keys=['tp9','af7','af8','tp10'];
+  for(var ci=0;ci<keys.length;ci++){var d=S.wf[keys[ci]];if(!d||d.length<2)continue;
+    cx.beginPath();cx.strokeStyle=cols[ci];cx.lineWidth=1;cx.globalAlpha=.7;var st=w/WP,sc2=h*.07/200,y0=h*((ci+.5)/keys.length);
+    for(var i=0;i<d.length;i++){var x=i*st,y=y0+d[i]*sc2;i===0?cx.moveTo(x,y):cx.lineTo(x,y)}cx.stroke();cx.globalAlpha=1}
+}
+
+function drawHist(){
+  var cv=document.getElementById('hC'),cx=cv.getContext('2d'),dp=window.devicePixelRatio||1;
+  cv.width=cv.clientWidth*dp;cv.height=cv.clientHeight*dp;cx.scale(dp,dp);
+  var w=cv.clientWidth,h=cv.clientHeight,p=6;cx.clearRect(0,0,w,h);
+
+  // Draw colored zone backgrounds
+  var y70=p+(1-70/100)*(h-p*2),y40=p+(1-40/100)*(h-p*2);
+  cx.fillStyle='#10b98108';cx.fillRect(0,p,w,y70-p); // Deep focus zone
+  cx.fillStyle='#f59e0b06';cx.fillRect(0,y70,w,y40-y70); // Moderate zone
+  cx.fillStyle='#ef444406';cx.fillRect(0,y40,w,h-p-y40); // Distracted zone
+
+  // Zone lines with labels
+  cx.setLineDash([6,4]);cx.lineWidth=1;
+  cx.beginPath();cx.strokeStyle='#10b98140';cx.moveTo(0,y70);cx.lineTo(w,y70);cx.stroke();
+  cx.beginPath();cx.strokeStyle='#f59e0b40';cx.moveTo(0,y40);cx.lineTo(w,y40);cx.stroke();
+  cx.setLineDash([]);
+
+  // Zone labels
+  cx.font='9px "DM Mono",monospace';
+  cx.fillStyle='#10b98160';cx.fillText('DEEP FOCUS 70%',6,y70-4);
+  cx.fillStyle='#f59e0b60';cx.fillText('MODERATE 40%',6,y40-4);
+  cx.fillStyle='#ef444450';cx.fillText('DISTRACTED',6,h-p-2);
+
+  // Alert threshold line
+  var th=parseInt(document.getElementById('sTh').value)||30;
+  var ty=p+(1-th/100)*(h-p*2);
+  cx.beginPath();cx.strokeStyle='#ef444450';cx.lineWidth=1;cx.setLineDash([3,3]);cx.moveTo(0,ty);cx.lineTo(w,ty);cx.stroke();cx.setLineDash([]);
+  cx.fillStyle='#ef444440';cx.fillText('alert '+th+'%',w-55,ty-3);
+
+  // Filter to only valid readings for drawing
+  var hi=S.history;if(hi.length<2)return;
+  var ts=HS*1000,now=Date.now();
+  var valid=hi.filter(function(h){return h.s>=0});
+  if(valid.length<2)return;
+  // Fill under curve
+  cx.beginPath();var started=false;
+  for(var i=0;i<valid.length;i++){var x=((valid[i].t-(now-ts))/ts)*w,y=p+(1-valid[i].s/100)*(h-p*2);if(!started){cx.moveTo(x,y);started=true}else cx.lineTo(x,y)}
+  var lx=((valid[valid.length-1].t-(now-ts))/ts)*w;cx.lineTo(lx,h);cx.lineTo(((valid[0].t-(now-ts))/ts)*w,h);cx.closePath();
+  var gr=cx.createLinearGradient(0,0,0,h);gr.addColorStop(0,'#06b6d418');gr.addColorStop(1,'#06b6d403');cx.fillStyle=gr;cx.fill();
+  // Line — break on no-signal gaps
+  cx.beginPath();cx.strokeStyle='#06b6d4';cx.lineWidth=1.5;started=false;
+  for(var i=0;i<hi.length;i++){
+    if(hi[i].s<0){started=false;continue}
+    var x=((hi[i].t-(now-ts))/ts)*w,y=p+(1-hi[i].s/100)*(h-p*2);
+    if(!started){cx.moveTo(x,y);started=true}else cx.lineTo(x,y)}
+  cx.stroke();
+  // Draw "no signal" regions as hatched
+  cx.fillStyle='#ef444410';
+  for(var i=0;i<hi.length;i++){
+    if(hi[i].s===-1){var x=((hi[i].t-(now-ts))/ts)*w;cx.fillRect(x-1,p,3,h-p*2)}}
+}
+
+// ==================== MINI & WIDGET ====================
+function toggleMini(){S.mini=!S.mini;document.getElementById('miniM').classList.toggle('on',S.mini);document.getElementById('mainApp').style.display=S.mini?'none':''}
+
+// Hex to RGB helper for widget color interpolation
+function hexToRgb(hex){
+  var r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return[r,g,b];
+}
+
+function openWidget(){
+  var html='<!DOCTYPE html><html><head><title>NF Widget</title><style>'+
+  '*{margin:0;padding:0;box-sizing:border-box}'+
+  'body{font-family:"DM Mono",monospace;background:#0a0e17;color:#e2e8f0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;overflow:hidden;user-select:none;transition:background 1.2s}'+
+  'body.alert{animation:alertBg 1.5s infinite}'+
+  '.orb{width:85vmin;height:85vmin;border-radius:50%;transition:all 1.2s;background:radial-gradient(circle,#47556966,#47556922)}'+
+  'body.alert .orb{animation:orbPulse 1s infinite}'+
+  'body.text .orb{width:65vmin;height:65vmin;display:flex;align-items:center;justify-content:center;flex-direction:column;margin-bottom:4px}'+
+  '.sc{display:none}.st{display:none}.info{display:none}.goal{display:none}'+
+  'body.text .sc{display:block;font-size:38px;font-weight:500;color:#fff;text-shadow:0 0 20px rgba(0,0,0,.5)}'+
+  'body.text .st{display:block;font-size:7px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.7);margin-top:2px}'+
+  'body.text .info{display:block;font-size:9px;color:#64748b;margin-top:5px;text-align:center;line-height:1.6}'+
+  'body.text .goal{display:block;font-size:8px;color:#22d3ee;margin-top:3px;text-align:center}'+
+  '.drift{font-size:8px;color:#ef4444;position:fixed;bottom:8px;left:0;right:0;text-align:center;letter-spacing:1px;text-transform:uppercase;opacity:0;transition:opacity .3s}'+
+  '.drift.on{opacity:1;animation:pulse .8s infinite}'+
+  '.flash{position:fixed;inset:0;background:rgba(239,68,68,0.35);opacity:0;pointer-events:none}'+
+  '.flash.on{animation:flashAnim .6s ease-out forwards}'+
+  '.tog{position:fixed;top:4px;right:4px;width:16px;height:16px;border-radius:50%;border:1px solid #334155;background:transparent;color:#475569;font-size:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0.12;transition:opacity .2s;z-index:10}'+
+  '.tog:hover{opacity:0.7}body.text .tog{opacity:0.5}'+
+  '@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}'+
+  '@keyframes orbPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}'+
+  '@keyframes flashAnim{0%{opacity:1}100%{opacity:0}}'+
+  '@keyframes alertBg{0%,100%{background:#1a0808}50%{background:#0a0e17}}'+
+  '</style></head><body>'+
+  '<div class="flash" id="flash"></div>'+
+  '<button class="tog" id="tog" title="Toggle details">T</button>'+
+  '<div class="orb" id="orb"><div class="sc" id="sc"></div><div class="st" id="st"></div></div>'+
+  '<div class="info"><span id="tm">0:00</span> &middot; avg <span id="av">&mdash;</span></div>'+
+  '<div class="drift" id="drift">&#9888; refocus</div>'+
+  '<div class="goal" id="gl"></div>'+
+  '<script>document.getElementById("tog").onclick=function(){document.body.classList.toggle("text")}<\/script>'+
+  '</body></html>';
+  var w=window.open('','nf_widget','width=170,height=190,top=50,left=50,toolbar=no,menubar=no,scrollbars=no,resizable=yes');
+  if(w){w.document.write(html);w.document.close();widgetWin=w;dbg('Widget opened','ok')}
+  else{dbg('Popup blocked — allow popups for localhost','err')}
+}
+
+// Play ding sound in the widget popup window
+function playWidgetDing(){
+  if(!widgetWin||widgetWin.closed)return;
+  try{
+    var WA=widgetWin.AudioContext||widgetWin.webkitAudioContext;
+    if(!WA)return;
+    var c=new WA();
+    // Two-tone alert: 440Hz then 554Hz (A4 → C#5) — gentle but noticeable
+    var o1=c.createOscillator(),g1=c.createGain();
+    o1.connect(g1);g1.connect(c.destination);
+    o1.frequency.value=440;o1.type='sine';
+    g1.gain.setValueAtTime(0.15,c.currentTime);
+    g1.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.3);
+    o1.start(c.currentTime);o1.stop(c.currentTime+0.35);
+    var o2=c.createOscillator(),g2=c.createGain();
+    o2.connect(g2);g2.connect(c.destination);
+    o2.frequency.value=554;o2.type='sine';
+    g2.gain.setValueAtTime(0,c.currentTime+0.15);
+    g2.gain.linearRampToValueAtTime(0.12,c.currentTime+0.18);
+    g2.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.5);
+    o2.start(c.currentTime+0.15);o2.stop(c.currentTime+0.55);
+  }catch(e){}
+}
+
+// Trigger red flash in widget
+function flashWidget(){
+  if(!widgetWin||widgetWin.closed)return;
+  try{
+    var fl=widgetWin.document.getElementById('flash');
+    if(fl){
+      fl.classList.remove('on');
+      void fl.offsetWidth; // Force reflow to restart animation
+      fl.classList.add('on');
+    }
+  }catch(e){}
+}
+
+// ==================== ACTIVE APP TRACKING ====================
+var activeApp='',appPollTimer=null;
+
+function toggleAppTracking(){
+  var on=document.getElementById('sApp').checked;
+  document.getElementById('appDisplay').style.display=on?'block':'none';
+  if(on){pollActiveApp();startAppPolling()}
+  else{if(appPollTimer){clearInterval(appPollTimer);appPollTimer=null}activeApp=''}
+}
+
+function startAppPolling(){
+  if(appPollTimer)clearInterval(appPollTimer);
+  appPollTimer=setInterval(pollActiveApp,3000); // Poll every 3s
+}
+
+function pollActiveApp(){
+  fetch('/active-app').then(function(r){return r.json()}).then(function(d){
+    activeApp=d.app||'Unknown';
+    document.getElementById('appName').textContent=activeApp;
+  }).catch(function(){
+    // Server not running or endpoint unavailable
+    activeApp='';
+    document.getElementById('appName').textContent='(use neurofocus-server.py)';
+  });
+}
+
+// Start polling on load if enabled
+if(document.getElementById('sApp')&&document.getElementById('sApp').checked){
+  document.getElementById('appDisplay').style.display='block';
+  pollActiveApp();startAppPolling();
+}
+
+// ==================== RECORDING ====================
+function toggleRec(){S.rec=!S.rec;var btn=document.getElementById('recBtn'),dot=document.getElementById('recDot');
+  if(S.rec){btn.classList.add('on');dot.classList.add('on');S.recD=[];S.lastRec=0;dbg('Recording…','ok')}
+  else{btn.classList.remove('on');dot.classList.remove('on');exportRec();dbg('Recording saved','ok')}}
+function recSample(){if(!S.rec||S.score<0||S.paused)return;var iv=(parseInt(document.getElementById('sRi').value)||5)*1000,now=Date.now();
+  if(now-S.lastRec<iv)return;S.lastRec=now;
+  var row={time:new Date().toISOString(),focus:S.score,delta:S.band.delta.toFixed(4),theta:S.band.theta.toFixed(4),alpha:S.band.alpha.toFixed(4),beta:S.band.beta.toFixed(4),gamma:S.band.gamma.toFixed(4),state:S.score>=70?'focused':S.score>=40?'moderate':'distracted'};
+  if(document.getElementById('sApp').checked&&activeApp)row.app=activeApp;
+  S.recD.push(row)}
+function exportRec(){if(!S.recD.length)return;
+  var hasApp=S.recD.some(function(r){return r.app});
+  var h='time,focus,delta,theta,alpha,beta,gamma,state'+(hasApp?',app':'')+'\n';
+  var rows=S.recD.map(function(r){
+    var line=r.time+','+r.focus+','+r.delta+','+r.theta+','+r.alpha+','+r.beta+','+r.gamma+','+r.state;
+    if(hasApp)line+=','+(r.app?'"'+r.app.replace(/"/g,'""')+'"':'');
+    return line}).join('\n');
+  var bl=new Blob([h+rows],{type:'text/csv'}),a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download='neurofocus_'+new Date().toISOString().slice(0,19).replace(/:/g,'-')+'.csv';a.click();S.recD=[]}
+
+// ==================== DEMO ====================
+var dP=0;
+function startDemo(){if(S.connected||S.demo){disconnect();return}S.demo=1;S.start=Date.now();S.fS=0;S.fN=0;S.peak=0;S.drifts=0;S.history=[];S.cal=null;S._scoreLogs=0;
+  S.zoneMs={deep:0,moderate:0,distracted:0,noSignal:0};S.lastZoneTick=0;S.paused=false;loadCalibration();
+  document.getElementById('cBtn').className='b bc on';document.getElementById('cDot').className='dot on';document.getElementById('cLbl').textContent='Stop';
+  document.getElementById('dmBdg').classList.add('on');showPauseBtn();dbg('Demo','info');startLoop()}
+function genDemo(){if(S.paused)return;dP+=.02;var base=55+25*Math.sin(dP*.5)+10*Math.sin(dP*1.3);
+  S.score=Math.max(0,Math.min(100,Math.round(base+(Math.random()-.5)*10)));var f=S.score/100;
+  S.band={delta:.3+Math.random()*.2,theta:.4*(1-f)+Math.random()*.1,alpha:.3*(1-f)+Math.random()*.1,beta:.5*f+Math.random()*.15,gamma:.2*f+Math.random()*.1};
+  var t=Date.now()/1000;['tp9','af7','af8','tp10'].forEach(function(ch){var ns=[];for(var i=0;i<4;i++){var v=0;for(var j=0;j<5;j++)v+=(20+Math.random()*60)*Math.sin(2*Math.PI*(8+j*5)*(t+i/SR)+j);ns.push(v+(Math.random()-.5)*30)}var w=S.wf[ch];ns.forEach(function(s){w.push(s)});if(w.length>WP)w.splice(0,w.length-WP)});
+  var now=Date.now();if(S.lastZoneTick){var dt=now-S.lastZoneTick;if(S.score>=70)S.zoneMs.deep+=dt;else if(S.score>=40)S.zoneMs.moderate+=dt;else S.zoneMs.distracted+=dt}S.lastZoneTick=now;
+  S.fN++;S.fS+=S.score;S.peak=Math.max(S.peak,S.score);S.history.push({t:Date.now(),s:S.score});var cut=Date.now()-HS*1000;while(S.history.length&&S.history[0].t<cut)S.history.shift();
+  chkAlert();updateGoal()}
+
+// ==================== PERSISTENCE (localStorage) ====================
+// Saves calibration, IAF, and session history across page reloads
+
+function saveCalibration(){
+  try{
+    if(!S.cal||S.cal.manualBaseline===null)return;
+    var data={baseline:S.cal.manualBaseline,range:S.cal.manualRange,
+      iaf:IAF.detected?IAF.freq:null,iafConf:IAF.confidence,
+      savedAt:new Date().toISOString()};
+    localStorage.setItem('nf_calibration',JSON.stringify(data));
+    dbg('Calibration saved to localStorage','ok');
+  }catch(e){}
+}
+
+function loadCalibration(){
+  try{
+    var raw=localStorage.getItem('nf_calibration');
+    if(!raw)return;
+    var data=JSON.parse(raw);
+    if(data.baseline!=null&&data.range!=null){
+      // Initialize cal object if needed
+      if(!S.cal)S.cal={samples:0,ema:null,history:[],manualBaseline:null,manualRange:null};
+      S.cal.manualBaseline=data.baseline;
+      S.cal.manualRange=data.range;
+      // Restore IAF
+      if(data.iaf!=null){
+        IAF.detected=true;IAF.freq=data.iaf;IAF.confidence=data.iafConf||0.5;IAF.history=[data.iaf];
+      }
+      // Update UI
+      var info=document.getElementById('calInfo');
+      if(info){
+        info.textContent='Restored calibration ('+new Date(data.savedAt).toLocaleDateString()+') baseline='+data.baseline.toFixed(2)+' range='+data.range.toFixed(2);
+        info.style.color='var(--cy2)';
+      }
+      document.getElementById('calBtn').textContent='Recalibrate';
+      if(IAF.detected){
+        document.getElementById('iafDisplay').style.display='';
+        document.getElementById('iafValue').textContent=IAF.freq.toFixed(1)+' Hz (restored)';
+      }
+      dbg('Calibration restored: baseline='+data.baseline.toFixed(2)+' range='+data.range.toFixed(2)+(data.iaf?' IAF='+data.iaf.toFixed(1)+'Hz':''),'ok');
+    }
+  }catch(e){dbg('Failed to load calibration: '+e,'err')}
+}
+
+function saveSession(){
+  try{
+    if(!S.start||!S.fN)return; // No data to save
+    var elapsed=Date.now()-S.start;
+    if(elapsed<10000)return; // Skip sessions < 10s
+    var zt=S.zoneMs;
+    var session={
+      date:new Date(S.start).toISOString(),
+      durationMs:elapsed,
+      avgFocus:Math.round(S.fS/S.fN),
+      peakFocus:S.peak,
+      drifts:S.drifts,
+      samples:S.fN,
+      zoneMs:{deep:zt.deep,moderate:zt.moderate,distracted:zt.distracted,noSignal:zt.noSignal},
+      iaf:IAF.detected?IAF.freq:null,
+      demo:S.demo?true:false
+    };
+    var history=getSessionHistory();
+    history.push(session);
+    // Keep last 100 sessions
+    if(history.length>100)history=history.slice(-100);
+    localStorage.setItem('nf_sessions',JSON.stringify(history));
+    dbg('Session saved ('+formatDuration(elapsed)+', avg='+session.avgFocus+')','ok');
+    renderSessionHistory();
+  }catch(e){dbg('Failed to save session: '+e,'err')}
+}
+
+function getSessionHistory(){
+  try{
+    var raw=localStorage.getItem('nf_sessions');
+    return raw?JSON.parse(raw):[];
+  }catch(e){return[]}
+}
+
+function clearSessionHistory(){
+  if(confirm('Clear all session history? This cannot be undone.')){
+    localStorage.removeItem('nf_sessions');
+    renderSessionHistory();
+    dbg('Session history cleared','info');
+  }
+}
+
+function exportSessionHistory(){
+  var history=getSessionHistory();
+  if(!history.length){alert('No session history to export.');return}
+  var csv='date,duration_min,avg_focus,peak_focus,drifts,deep_min,deep_pct,moderate_min,moderate_pct,distracted_min,distracted_pct,iaf_hz,demo\n';
+  for(var i=0;i<history.length;i++){
+    var h=history[i],dur=h.durationMs/60000;
+    var zt=h.zoneMs||{deep:0,moderate:0,distracted:0};
+    var ztTotal=zt.deep+zt.moderate+zt.distracted||1;
+    csv+=h.date+','+dur.toFixed(1)+','+h.avgFocus+','+h.peakFocus+','+h.drifts+',';
+    csv+=(zt.deep/60000).toFixed(1)+','+Math.round(zt.deep/ztTotal*100)+',';
+    csv+=(zt.moderate/60000).toFixed(1)+','+Math.round(zt.moderate/ztTotal*100)+',';
+    csv+=(zt.distracted/60000).toFixed(1)+','+Math.round(zt.distracted/ztTotal*100)+',';
+    csv+=(h.iaf?h.iaf.toFixed(1):'')+','+(h.demo?'yes':'no')+'\n';
+  }
+  var blob=new Blob([csv],{type:'text/csv'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='neurofocus_history_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();URL.revokeObjectURL(a.href);
+}
+
+function formatDuration(ms){
+  var s=Math.floor(ms/1000),m=Math.floor(s/60),h=Math.floor(m/60);
+  if(h>0)return h+'h '+( m%60)+'m';
+  return m+'m '+(s%60)+'s';
+}
+
+function renderSessionHistory(){
+  var el=document.getElementById('histList');
+  if(!el)return;
+  var history=getSessionHistory();
+  if(!history.length){el.innerHTML='<div style="color:var(--t3);padding:8px">No sessions recorded yet.</div>';return}
+  var html='<table style="width:100%;border-collapse:collapse;font-size:9px">';
+  html+='<tr style="color:var(--t3);border-bottom:1px solid var(--bdr)"><th style="text-align:left;padding:3px">Date</th><th>Dur</th><th>Avg</th><th>Peak</th><th style="color:var(--gn)">Deep</th><th style="color:var(--yl)">Mod</th><th style="color:var(--rd)">Dist</th><th>Drifts</th></tr>';
+  // Show newest first
+  for(var i=history.length-1;i>=Math.max(0,history.length-20);i--){
+    var h=history[i],zt=h.zoneMs||{deep:0,moderate:0,distracted:0};
+    var ztTotal=zt.deep+zt.moderate+zt.distracted||1;
+    var dp=Math.round(zt.deep/ztTotal*100),mp=Math.round(zt.moderate/ztTotal*100),rp=100-dp-mp;
+    var d=new Date(h.date);
+    var dateStr=(d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':'+d.getMinutes().toString().padStart(2,'0');
+    html+='<tr style="border-bottom:1px solid var(--bdr);'+(h.demo?'opacity:0.5':'')+'">';
+    html+='<td style="padding:3px">'+dateStr+(h.demo?' <span style="color:var(--pu)">(demo)</span>':'')+'</td>';
+    html+='<td style="text-align:center">'+formatDuration(h.durationMs)+'</td>';
+    html+='<td style="text-align:center;color:'+(h.avgFocus>=70?'var(--gn)':h.avgFocus>=40?'var(--yl)':'var(--rd)')+'">'+h.avgFocus+'</td>';
+    html+='<td style="text-align:center">'+h.peakFocus+'</td>';
+    html+='<td style="text-align:center;color:var(--gn)">'+dp+'%</td>';
+    html+='<td style="text-align:center;color:var(--yl)">'+mp+'%</td>';
+    html+='<td style="text-align:center;color:var(--rd)">'+rp+'%</td>';
+    html+='<td style="text-align:center">'+(h.drifts||0)+'</td>';
+    html+='</tr>';
+  }
+  html+='</table>';
+  if(history.length>20)html+='<div style="color:var(--t3);padding:4px;font-size:9px">Showing 20 of '+history.length+' sessions</div>';
+  el.innerHTML=html;
+}
+
+// Also persist calibration whenever it completes successfully
+var _origFinishCal=finishCalibration;
+finishCalibration=function(){
+  _origFinishCal();
+  saveCalibration();
+};
+
+// Save calibration when IAF updates significantly
+var _origDetectIAF=detectIAF;
+detectIAF=function(psdList){
+  var prevFreq=IAF.freq;
+  _origDetectIAF(psdList);
+  // If IAF changed by >0.5Hz and calibration exists, re-save
+  if(IAF.detected&&S.cal&&S.cal.manualBaseline!==null&&Math.abs(IAF.freq-prevFreq)>0.5){
+    saveCalibration();
+  }
+};
+
+// Load session history on page load
+document.addEventListener('DOMContentLoaded',function(){
+  renderSessionHistory();
+});
+// Also run immediately in case DOM already loaded
+if(document.readyState!=='loading')renderSessionHistory();
+
+// Save session when page is closed/refreshed
+window.addEventListener('beforeunload',function(){
+  if(S.connected||S.demo)saveSession();
+});
+
+// ==================== OVERLAY SCORE BRIDGE ====================
+// Posts focus score to server for the desktop overlay to read
+var _lastScorePost=0;
+function postScore(){
+  var now=Date.now();
+  if(now-_lastScorePost<800)return; // Throttle to ~1/sec
+  _lastScorePost=now;
+  try{
+    var body=JSON.stringify({score:S.score,state:S.score>=70?'deep':S.score>=40?'moderate':S.score>=0?'distracted':'noSignal',paused:S.paused,timestamp:now});
+    fetch('/focus-score',{method:'POST',headers:{'Content-Type':'application/json'},body:body}).catch(function(){});
+  }catch(e){}
+}
+
+function updateOverlaySettings(){
+  var bright=parseInt(document.getElementById('ovBright').value)||100;
+  var border=parseInt(document.getElementById('ovBorder').value)||4;
+  var glow=parseInt(document.getElementById('ovGlow').value)||12;
+  document.getElementById('ovBrightVal').textContent=bright+'%';
+  document.getElementById('ovBorderVal').textContent=border+'px';
+  document.getElementById('ovGlowVal').textContent=glow+'px';
+  try{
+    fetch('/overlay-settings',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({brightness:bright,border_width:border,glow_width:glow})}).catch(function(){});
+  }catch(e){}
+}
+
+// ==================== MAIN LOOP ====================
+var lastP=0,bgTimer=null;
+function startLoop(){
+  // rAF for canvas drawing (only when tab visible)
+  function lp(ts){if(!S.connected&&!S.demo)return;
+    var rm=(parseFloat(document.getElementById('sRf').value)||1)*1000;
+    if(ts-lastP>rm){S.demo?genDemo():proc();updateUI();recSample();postScore();lastP=ts}
+    drawWF();drawHist();S.af=requestAnimationFrame(lp)}
+  S.af=requestAnimationFrame(lp);
+
+  // setInterval for background updates (keeps running when tab is minimized)
+  if(bgTimer)clearInterval(bgTimer);
+  bgTimer=setInterval(function(){
+    if(!S.connected&&!S.demo){clearInterval(bgTimer);bgTimer=null;return}
+    // Only do work here when tab is hidden (rAF handles visible state)
+    if(document.hidden){
+      S.demo?genDemo():proc();
+      updateUI();
+      recSample();
+      postScore();
+    }
+  },1000);
+}
+</script>
+</body>
+</html>
