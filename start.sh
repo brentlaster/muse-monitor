@@ -38,6 +38,24 @@ header() {
 stop_all() {
     echo -e "${YELLOW}Stopping existing NeuroFocus processes...${NC}"
     
+    # Close existing NeuroFocus Chrome tabs
+    osascript -e '
+    tell application "Google Chrome"
+        set windowList to every window
+        repeat with aWindow in windowList
+            set tabList to every tab of aWindow
+            repeat with i from (count of tabList) to 1 by -1
+                set aTab to item i of tabList
+                if URL of aTab contains "muse-focus-monitor" then
+                    close aTab
+                end if
+            end repeat
+        end repeat
+    end tell
+    ' 2>/dev/null && \
+        echo -e "  ${GREEN}✓${NC} Closed NeuroFocus Chrome tab(s)" || \
+        echo -e "  ${NC}  No Chrome tabs to close"
+
     # Kill anything on port 8000
     local pids
     pids=$(lsof -ti:${PORT} 2>/dev/null || true)
