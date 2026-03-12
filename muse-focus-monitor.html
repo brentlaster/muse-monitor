@@ -322,18 +322,23 @@ select.si2{width:auto;padding-right:6px;cursor:pointer;-webkit-appearance:auto}
       <div class="sg2"><span class="sl2">Style</span>
         <select class="si2" id="ambStyle" onchange="updateAmbientStyle()" style="width:auto">
           <option value="handpan">Handpan (D minor)</option>
-          <option value="forest">Forest birds</option>
-          <option value="ambient">Ambient pads</option>
-          <option value="zen">Zen bells</option>
-          <option value="solfeggio">Solfeggio frequencies</option>
+          <option value="piano">Gentle Piano</option>
+          <option value="lofi">Lo-fi Chords</option>
+          <option value="forest">Forest Birds</option>
+          <option value="rain">Rain</option>
+          <option value="ocean">Ocean Waves</option>
+          <option value="ambient">Ambient Pads</option>
+          <option value="zen">Zen Bells</option>
+          <option value="bowls">Singing Bowls</option>
+          <option value="solfeggio">Solfeggio Frequencies</option>
         </select>
       </div>
       <div class="sg2"><span class="sl2">Volume</span><input type="range" id="ambVol" min="0" max="100" value="30" style="width:80px;accent-color:var(--cy)" oninput="updateAmbientVol()"></div>
       <div class="sg2" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--t3)" id="ambStatus">Off</div>
     </div>
     <div style="font-size:10px;color:var(--t3);margin-top:8px;line-height:1.5">
-      Higher focus = more notes, richer layering &middot; Lower focus = sparse, simple<br>
-      Solfeggio mode: focused plays 741-963 Hz (awakening), distracted plays 174-396 Hz (grounding)
+      Higher focus = more notes, richer layering, denser textures &middot; Lower focus = sparse, simple<br>
+      10 styles: tonal (handpan, piano, lo-fi, bells, bowls, pads, solfeggio), nature (forest, rain, ocean)
     </div>
   </div>
   <div class="c fw">
@@ -1291,7 +1296,7 @@ var SOLFEGGIO=[174.00,285.00,396.00,417.00,432.00,528.00,639.00,741.00,852.00,96
 var STYLES={
   handpan:{
     notes:[146.83,164.81,174.61,220,233.08,293.66,329.63,349.23,440,466.16,587.33,659.26,698.46,880,932.33,1174.66],
-    type:'perc'  // percussive attack
+    type:'perc'
   },
   forest:{
     notes:[329.63,392.00,440,493.88,523.25,659.26,783.99,880,987.77,1046.50,1318.51,1479.98,1760,2093.00],
@@ -1308,6 +1313,31 @@ var STYLES={
   solfeggio:{
     notes:SOLFEGGIO,
     type:'solf'
+  },
+  piano:{
+    // C major + pentatonic spread across octaves — gentle piano feel
+    notes:[130.81,146.83,164.81,196.00,220.00,261.63,293.66,329.63,392.00,440.00,523.25,587.33,659.26,783.99,880.00,1046.50],
+    type:'piano'
+  },
+  bowls:{
+    // Tibetan singing bowl fundamentals — rich beating harmonics
+    notes:[110.00,146.83,164.81,196.00,220.00,261.63,293.66,329.63,392.00,440.00,523.25],
+    type:'bowl'
+  },
+  rain:{
+    // Rain uses noise, not pitched notes — frequencies control filter cutoffs
+    notes:[200,400,800,1200,2000,3000,5000,8000],
+    type:'rain'
+  },
+  ocean:{
+    // Ocean uses filtered noise sweeps — frequencies are wave "pitches"
+    notes:[80,120,180,250,350,500,700],
+    type:'ocean'
+  },
+  lofi:{
+    // Lo-fi hip-hop chord voicings — 7th chords, jazzy
+    notes:[130.81,146.83,164.81,174.61,196.00,220.00,233.08,261.63,293.66,311.13,329.63,349.23,392.00,415.30,440.00,466.16],
+    type:'lofi'
   }
 };
 
@@ -1388,6 +1418,92 @@ function playTone(freq,type,vel){
     g.gain.exponentialRampToValueAtTime(.001,t+5);
     o.connect(g);o2.connect(g);g.connect(amb.bus);
     o.start(t);o2.start(t);o.stop(t+5.5);o2.stop(t+5.5);
+  }else if(type==='piano'){
+    // Piano — hammer attack, quick decay into warm sustain, damped release
+    var fund=ctx.createOscillator();fund.type='sine';fund.frequency.value=freq;
+    var h2=ctx.createOscillator();h2.type='sine';h2.frequency.value=freq*2.0;
+    var h3=ctx.createOscillator();h3.type='sine';h3.frequency.value=freq*3.0;
+    var h4=ctx.createOscillator();h4.type='sine';h4.frequency.value=freq*4.02;
+    var g=ctx.createGain();g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(v*.2,t+.005); // Sharp hammer attack
+    g.gain.exponentialRampToValueAtTime(v*.08,t+.08); // Quick decay
+    g.gain.exponentialRampToValueAtTime(v*.04,t+1.5); // Warm sustain
+    g.gain.exponentialRampToValueAtTime(.001,t+4);
+    var gh2=ctx.createGain();gh2.gain.value=v*.06;
+    var gh3=ctx.createGain();gh3.gain.value=v*.02;
+    var gh4=ctx.createGain();gh4.gain.value=v*.008;
+    // Warm lowpass filter
+    var fl=ctx.createBiquadFilter();fl.type='lowpass';fl.frequency.value=Math.min(freq*6,8000);fl.Q.value=0.5;
+    fund.connect(fl);h2.connect(gh2);gh2.connect(fl);h3.connect(gh3);gh3.connect(fl);h4.connect(gh4);gh4.connect(fl);
+    fl.connect(g);g.connect(amb.bus);
+    fund.start(t);h2.start(t);h3.start(t);h4.start(t);
+    fund.stop(t+4.5);h2.stop(t+4.5);h3.stop(t+4.5);h4.stop(t+4.5);
+  }else if(type==='bowl'){
+    // Tibetan singing bowl — rich beating harmonics, very long sustain
+    var f1=freq,f2=freq*1.504,f3=freq*2.092,f4=freq*2.998; // Inharmonic bowl partials
+    var o1=ctx.createOscillator();o1.type='sine';o1.frequency.value=f1;
+    var o2=ctx.createOscillator();o2.type='sine';o2.frequency.value=f1*1.002; // Beating pair
+    var o3=ctx.createOscillator();o3.type='sine';o3.frequency.value=f2;
+    var o4=ctx.createOscillator();o4.type='sine';o4.frequency.value=f3;
+    var o5=ctx.createOscillator();o5.type='sine';o5.frequency.value=f4;
+    var g=ctx.createGain();g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(v*.14,t+.01); // Rim strike
+    g.gain.exponentialRampToValueAtTime(v*.08,t+1);
+    g.gain.exponentialRampToValueAtTime(v*.03,t+4);
+    g.gain.exponentialRampToValueAtTime(.001,t+8); // Very long ring
+    var g3=ctx.createGain();g3.gain.value=v*.04;
+    var g4=ctx.createGain();g4.gain.value=v*.02;
+    var g5=ctx.createGain();g5.gain.value=v*.01;
+    o1.connect(g);o2.connect(g);o3.connect(g3);g3.connect(g);o4.connect(g4);g4.connect(g);o5.connect(g5);g5.connect(g);
+    g.connect(amb.bus);
+    o1.start(t);o2.start(t);o3.start(t);o4.start(t);o5.start(t);
+    o1.stop(t+9);o2.stop(t+9);o3.stop(t+9);o4.stop(t+9);o5.stop(t+9);
+  }else if(type==='rain'){
+    // Rain drop — short filtered noise burst
+    var buf=ctx.createBuffer(1,ctx.sampleRate*0.08,ctx.sampleRate);
+    var d=buf.getChannelData(0);for(var ri=0;ri<d.length;ri++)d[ri]=(Math.random()*2-1);
+    var src=ctx.createBufferSource();src.buffer=buf;
+    var bp=ctx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=freq;bp.Q.value=2+Math.random()*4;
+    var g=ctx.createGain();g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(v*.08,t+.002);
+    g.gain.exponentialRampToValueAtTime(.001,t+.06+Math.random()*.04);
+    src.connect(bp);bp.connect(g);g.connect(amb.bus);
+    src.start(t);
+  }else if(type==='ocean'){
+    // Ocean — long filtered noise sweep (wave crash/recede)
+    var dur=3+Math.random()*3;
+    var buf=ctx.createBuffer(2,ctx.sampleRate*dur,ctx.sampleRate);
+    for(var ch=0;ch<2;ch++){var d=buf.getChannelData(ch);for(var ri=0;ri<d.length;ri++)d[ri]=(Math.random()*2-1)}
+    var src=ctx.createBufferSource();src.buffer=buf;
+    var lp=ctx.createBiquadFilter();lp.type='lowpass';lp.Q.value=0.5;
+    // Wave shape: filter sweeps up then down
+    lp.frequency.setValueAtTime(freq*0.5,t);
+    lp.frequency.linearRampToValueAtTime(freq*2,t+dur*0.3); // Wave arrives
+    lp.frequency.exponentialRampToValueAtTime(freq*0.3,t+dur); // Wave recedes
+    var g=ctx.createGain();g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(v*.06,t+dur*0.2);
+    g.gain.setValueAtTime(v*.06,t+dur*0.4);
+    g.gain.exponentialRampToValueAtTime(.001,t+dur);
+    src.connect(lp);lp.connect(g);g.connect(amb.bus);
+    src.start(t);src.stop(t+dur+.1);
+  }else if(type==='lofi'){
+    // Lo-fi — warm detuned with vinyl wobble and heavy lowpass
+    var o1=ctx.createOscillator();o1.type='triangle';o1.frequency.value=freq;
+    var o2=ctx.createOscillator();o2.type='sine';o2.frequency.value=freq*1.005; // Detune
+    var o3=ctx.createOscillator();o3.type='sine';o3.frequency.value=freq*0.998;
+    // Slow vibrato wobble
+    var lfo=ctx.createOscillator();lfo.type='sine';lfo.frequency.value=0.3+Math.random()*0.4;
+    var lfoG=ctx.createGain();lfoG.gain.value=freq*0.003;
+    lfo.connect(lfoG);lfoG.connect(o1.frequency);
+    // Heavy lowpass for warmth
+    var fl=ctx.createBiquadFilter();fl.type='lowpass';fl.frequency.value=Math.min(freq*3,2500);fl.Q.value=0.8;
+    var g=ctx.createGain();g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(v*.1,t+.15); // Soft attack
+    g.gain.setValueAtTime(v*.1,t+2);
+    g.gain.exponentialRampToValueAtTime(.001,t+5);
+    o1.connect(fl);o2.connect(fl);o3.connect(fl);fl.connect(g);g.connect(amb.bus);
+    o1.start(t);o2.start(t);o3.start(t);lfo.start(t);
+    o1.stop(t+5.5);o2.stop(t+5.5);o3.stop(t+5.5);lfo.stop(t+5.5);
   }
 }
 
@@ -1416,6 +1532,18 @@ function scheduleNotes(){
     notesCount=1;                                 // Single note
     baseInterval=4000+Math.random()*3000;         // Every 4-7s
     registerBias=0.1; // Lower register
+  }
+
+  // Style-specific interval overrides
+  if(type==='rain'){
+    // Rain needs very fast drops
+    baseInterval=sc>=70?300+Math.random()*400:sc>=40?600+Math.random()*800:1500+Math.random()*2000;
+  }else if(type==='ocean'){
+    // Ocean waves are slow and long
+    baseInterval=sc>=70?3000+Math.random()*2000:sc>=40?5000+Math.random()*3000:7000+Math.random()*4000;
+  }else if(type==='bowl'){
+    // Bowls ring for a long time — space them out
+    baseInterval=sc>=70?4000+Math.random()*2000:sc>=40?6000+Math.random()*3000:8000+Math.random()*4000;
   }
 
   // Pick notes with register bias
@@ -1453,6 +1581,65 @@ function scheduleNotes(){
       var gf=notes[Math.floor(Math.random()*notes.length)];
       var gd=0.8+Math.random()*1.2;
       setTimeout(function(f){return function(){playTone(f,'perc',vol*0.15)}}(gf),gd*1000);
+    }
+  }
+
+  // Rain: focused = dense rainfall, distracted = sparse drops
+  if(type==='rain'){
+    var rainExtra=sc>=70?Math.floor(6+Math.random()*8):sc>=40?Math.floor(2+Math.random()*3):0;
+    for(var ri=0;ri<rainExtra;ri++){
+      var rf=notes[Math.floor(Math.random()*notes.length)];
+      var rd=Math.random()*1.8;
+      setTimeout(function(f){return function(){playTone(f,'rain',vol*(0.3+Math.random()*0.4))}}(rf),rd*1000);
+    }
+    // Focused: add continuous background wash (low filtered noise)
+    if(sc>=50&&Math.random()>0.5){
+      setTimeout(function(){playTone(300+Math.random()*400,'ocean',vol*0.15)},Math.random()*1000);
+    }
+  }
+
+  // Ocean: focused = overlapping waves, distracted = single distant wave
+  if(type==='ocean'&&sc>=60){
+    var extraWaves=Math.floor(Math.random()*(sc>=70?2:1));
+    for(var oi=0;oi<extraWaves;oi++){
+      var of2=notes[Math.floor(Math.random()*notes.length)];
+      var od=1+Math.random()*2;
+      setTimeout(function(f){return function(){playTone(f,'ocean',vol*0.4)}}(of2),od*1000);
+    }
+  }
+
+  // Piano: focused = chord arpeggios, moderate = intervals, distracted = single notes
+  if(type==='piano'&&sc>=55){
+    // Play a rising or falling sequence (arpeggio feel)
+    var seqLen=sc>=70?3:1;
+    var startIdx=Math.floor(Math.random()*(notes.length-seqLen));
+    for(var pi=0;pi<seqLen;pi++){
+      var pf=notes[Math.min(startIdx+pi,notes.length-1)];
+      var pd=0.3+pi*0.25; // Stagger by 250ms
+      setTimeout(function(f){return function(){playTone(f,'piano',vol*0.5)}}(pf),pd*1000);
+    }
+  }
+
+  // Lo-fi: focused = chord stacks (3-4 notes in thirds), distracted = single warm tone
+  if(type==='lofi'&&sc>=50){
+    // Build a chord: root + third + fifth + optional seventh
+    var chordSize=sc>=70?3:sc>=55?2:1;
+    var root=Math.floor(Math.random()*(notes.length-6));
+    var intervals=[0,2,4,5]; // root, third, fifth, seventh in the scale
+    for(var li=0;li<chordSize;li++){
+      var lf=notes[Math.min(root+intervals[li],notes.length-1)];
+      var ld=li*0.12;
+      setTimeout(function(f){return function(){playTone(f,'lofi',vol*0.45)}}(lf),ld*1000);
+    }
+  }
+
+  // Bowls: focused = overlapping sustained bowls, distracted = single distant ring
+  if(type==='bowl'&&sc>=60){
+    var extraBowls=sc>=70?Math.floor(Math.random()*2)+1:Math.random()>0.5?1:0;
+    for(var bi=0;bi<extraBowls;bi++){
+      var bf=notes[Math.floor(Math.random()*notes.length)];
+      var bd=1+Math.random()*3;
+      setTimeout(function(f){return function(){playTone(f,'bowl',vol*0.35)}}(bf),bd*1000);
     }
   }
 
