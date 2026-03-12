@@ -331,14 +331,20 @@ select.si2{width:auto;padding-right:6px;cursor:pointer;-webkit-appearance:auto}
           <option value="zen">Zen Bells</option>
           <option value="bowls">Singing Bowls</option>
           <option value="solfeggio">Solfeggio Frequencies</option>
+          <option value="custom">Custom Audio File</option>
         </select>
+      </div>
+      <div class="sg2" id="customAudioRow" style="display:none">
+        <span class="sl2">URL/file</span>
+        <input type="text" class="si2" id="customAudioUrl" placeholder="https://... or local path" style="width:160px;font-size:9px">
+        <button class="b bg" onclick="if(amb.active){startCustomAudio()}" style="font-size:9px;padding:3px 6px">Load</button>
       </div>
       <div class="sg2"><span class="sl2">Volume</span><input type="range" id="ambVol" min="0" max="100" value="50" style="width:80px;accent-color:var(--cy)" oninput="updateAmbientVol()"></div>
       <div class="sg2" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--t3)" id="ambStatus">Off</div>
     </div>
     <div style="font-size:10px;color:var(--t3);margin-top:8px;line-height:1.5">
-      Higher focus = more notes, richer layering, denser textures &middot; Lower focus = sparse, simple<br>
-      10 styles: tonal (handpan, piano, lo-fi, bells, bowls, pads, solfeggio), nature (forest, rain, ocean)
+      Higher focus = richer, denser, brighter &middot; Lower focus = sparse, muffled, quieter<br>
+      Custom audio: your music plays through a focus-responsive filter &mdash; clear &amp; intimate when focused, muffled &amp; distant when distracted
     </div>
   </div>
   <div class="c fw">
@@ -457,7 +463,7 @@ function disconnect(){if(S.demo){S.demo=0;document.getElementById('dmBdg').class
   if(CAL.active)cancelCalibration();
   for(var k in S.buf)S.buf[k]=[];for(var k in S.wf)S.wf[k]=[];
   clrAlert();if(S.af)cancelAnimationFrame(S.af);if(bgTimer){clearInterval(bgTimer);bgTimer=null}
-  if(amb.active){amb.active=false;if(amb.timer){clearTimeout(amb.timer);amb.timer=null}if(amb.master)amb.master.gain.linearRampToValueAtTime(0,amb.ctx.currentTime+1);document.getElementById('sAmb').checked=false;document.getElementById('ambStatus').textContent='Off';document.getElementById('ambStatus').style.color='var(--t3)'}
+  if(amb.active){amb.active=false;if(amb.timer){clearTimeout(amb.timer);amb.timer=null}stopContinuous();if(amb.master)amb.master.gain.linearRampToValueAtTime(0,amb.ctx.currentTime+1);document.getElementById('sAmb').checked=false;document.getElementById('ambStatus').textContent='Off';document.getElementById('ambStatus').style.color='var(--t3)'}
   document.getElementById('cBtn').className='b bc';document.getElementById('cDot').className='dot';document.getElementById('cLbl').textContent='Connect';
   hidePauseBtn();
   try{fetch('/focus-score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({score:-1,state:'disconnected',paused:false,timestamp:Date.now()})}).catch(function(){})}catch(e){}
@@ -938,6 +944,9 @@ function togglePause(){
     btn.classList.add('on');
     bnr.classList.add('on');
     dbg('Paused — all data collection, processing, and alerts suspended','info');
+    // Mute all audio
+    if(amb.ctx&&amb.active){amb.master.gain.linearRampToValueAtTime(0,amb.ctx.currentTime+0.5)}
+    if(contSound.fileAudio){try{contSound.fileAudio.pause()}catch(e){}}
     // Immediately notify server so overlay responds instantly
     try{fetch('/focus-score',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({score:S.score,state:'paused',paused:true,timestamp:Date.now()})}).catch(function(){})}catch(e){}
@@ -964,6 +973,12 @@ function togglePause(){
     // Immediately notify server so overlay resumes
     try{fetch('/focus-score',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({score:S.score,state:'resumed',paused:false,timestamp:Date.now()})}).catch(function(){})}catch(e){}
+    // Restore audio
+    if(amb.ctx&&amb.active){
+      var vol=(parseInt(document.getElementById('ambVol').value)||50)/100;
+      amb.master.gain.linearRampToValueAtTime(vol,amb.ctx.currentTime+0.5);
+    }
+    if(contSound.fileAudio){try{contSound.fileAudio.play()}catch(e){}}
     dbg('Resumed — buffers cleared, collecting fresh data','ok');
   }
 }
@@ -1341,6 +1356,250 @@ var STYLES={
   }
 };
 
+// ==================== CONTINUOUS SOUND GENERATORS ====================
+// Rain and Ocean use persistent noise nodes with modulated filters
+// rather than discrete note events. Custom audio loops a user-provided file.
+var contSound={active:false,nodes:[],modTimer:null,fileAudio:null};
+
+function createNoiseBuffer(ctx,dur){
+  var len=Math.floor(ctx.sampleRate*dur);
+  var buf=ctx.createBuffer(2,len,ctx.sampleRate);
+  for(var ch=0;ch<2;ch++){
+    var d=buf.getChannelData(ch);
+    for(var i=0;i<len;i++)d[i]=Math.random()*2-1;
+  }
+  return buf;
+}
+
+function startRain(){
+  var ctx=amb.ctx;if(!ctx)return;
+  stopContinuous();
+  contSound.active=true;
+  var noiseBuf=createNoiseBuffer(ctx,4); // 4-second looping noise
+
+  // Layer 1: Steady rain wash (lowpassed noise — the ambient bed)
+  var src1=ctx.createBufferSource();src1.buffer=noiseBuf;src1.loop=true;
+  var lp1=ctx.createBiquadFilter();lp1.type='lowpass';lp1.frequency.value=3000;lp1.Q.value=0.3;
+  var hp1=ctx.createBiquadFilter();hp1.type='highpass';hp1.frequency.value=400;hp1.Q.value=0.3;
+  var g1=ctx.createGain();g1.gain.value=0.35;
+  src1.connect(hp1);hp1.connect(lp1);lp1.connect(g1);g1.connect(amb.master);
+  src1.start();
+
+  // Layer 2: Higher frequency patter (bandpass — adds texture)
+  var src2=ctx.createBufferSource();src2.buffer=noiseBuf;src2.loop=true;
+  var bp2=ctx.createBiquadFilter();bp2.type='bandpass';bp2.frequency.value=5000;bp2.Q.value=0.5;
+  var g2=ctx.createGain();g2.gain.value=0.12;
+  src2.connect(bp2);bp2.connect(g2);g2.connect(amb.master);
+  src2.start();
+
+  // Layer 3: Low rumble (very low passed — distant thunder/ground)
+  var src3=ctx.createBufferSource();src3.buffer=noiseBuf;src3.loop=true;
+  var lp3=ctx.createBiquadFilter();lp3.type='lowpass';lp3.frequency.value=200;lp3.Q.value=0.5;
+  var g3=ctx.createGain();g3.gain.value=0.08;
+  src3.connect(lp3);lp3.connect(g3);g3.connect(amb.master);
+  src3.start();
+
+  contSound.nodes=[
+    {src:src1,filter:lp1,hpFilter:hp1,gain:g1,role:'wash'},
+    {src:src2,filter:bp2,gain:g2,role:'patter'},
+    {src:src3,filter:lp3,gain:g3,role:'rumble'}
+  ];
+
+  // Modulation: focus adjusts intensity
+  contSound.modTimer=setInterval(function(){
+    if(!contSound.active||!amb.active)return;
+    var sc=amb.score,vol=(parseInt(document.getElementById('ambVol').value)||50)/100;
+    var t=ctx.currentTime;
+    // Focused: rich, full-spectrum rain
+    // Distracted: muffled, quiet, just a drizzle
+    var intensity=0.3+(sc/100)*0.7; // 0.3 to 1.0
+    g1.gain.linearRampToValueAtTime(vol*0.4*intensity,t+1);
+    g2.gain.linearRampToValueAtTime(vol*0.18*intensity,t+1);
+    g3.gain.linearRampToValueAtTime(vol*0.1*intensity,t+1);
+    lp1.frequency.linearRampToValueAtTime(1500+sc*30,t+1); // 1500-4500Hz
+    bp2.frequency.linearRampToValueAtTime(3000+sc*40,t+1); // Higher patter when focused
+    // Subtle random variation
+    var drift=Math.sin(Date.now()/8000)*500;
+    lp1.frequency.linearRampToValueAtTime(1500+sc*30+drift,t+2);
+  },2000);
+}
+
+function startOcean(){
+  var ctx=amb.ctx;if(!ctx)return;
+  stopContinuous();
+  contSound.active=true;
+  var noiseBuf=createNoiseBuffer(ctx,6);
+
+  // Layer 1: Deep ocean rumble (very low)
+  var src1=ctx.createBufferSource();src1.buffer=noiseBuf;src1.loop=true;
+  var lp1=ctx.createBiquadFilter();lp1.type='lowpass';lp1.frequency.value=150;lp1.Q.value=0.4;
+  var g1=ctx.createGain();g1.gain.value=0.2;
+  src1.connect(lp1);lp1.connect(g1);g1.connect(amb.master);
+  src1.start();
+
+  // Layer 2: Wave body — bandpass noise with LFO-modulated filter (the wave cycle)
+  var src2=ctx.createBufferSource();src2.buffer=noiseBuf;src2.loop=true;
+  var bp2=ctx.createBiquadFilter();bp2.type='lowpass';bp2.frequency.value=800;bp2.Q.value=0.3;
+  var g2=ctx.createGain();g2.gain.value=0.25;
+  // LFO to sweep the filter — creates the wave rise/fall
+  var lfo=ctx.createOscillator();lfo.type='sine';lfo.frequency.value=0.08; // One wave every ~12 seconds
+  var lfoGain=ctx.createGain();lfoGain.gain.value=400;
+  lfo.connect(lfoGain);lfoGain.connect(bp2.frequency);
+  src2.connect(bp2);bp2.connect(g2);g2.connect(amb.master);
+  src2.start();lfo.start();
+
+  // Layer 3: Foam/hiss — highpass noise that swells with waves
+  var src3=ctx.createBufferSource();src3.buffer=noiseBuf;src3.loop=true;
+  var hp3=ctx.createBiquadFilter();hp3.type='highpass';hp3.frequency.value=2000;hp3.Q.value=0.3;
+  var lp3=ctx.createBiquadFilter();lp3.type='lowpass';lp3.frequency.value=8000;lp3.Q.value=0.3;
+  var g3=ctx.createGain();g3.gain.value=0.08;
+  // Second LFO slightly offset for foam timing
+  var lfo2=ctx.createOscillator();lfo2.type='sine';lfo2.frequency.value=0.08;
+  var lfo2G=ctx.createGain();lfo2G.gain.value=0.06;
+  lfo2.connect(lfo2G);lfo2G.connect(g3.gain);
+  src3.connect(hp3);hp3.connect(lp3);lp3.connect(g3);g3.connect(amb.master);
+  src3.start();lfo2.start();
+
+  // Layer 4: Distant shore wash — very subtle mid-range bed
+  var src4=ctx.createBufferSource();src4.buffer=noiseBuf;src4.loop=true;
+  var bp4=ctx.createBiquadFilter();bp4.type='bandpass';bp4.frequency.value=500;bp4.Q.value=0.2;
+  var g4=ctx.createGain();g4.gain.value=0.1;
+  src4.connect(bp4);bp4.connect(g4);g4.connect(amb.master);
+  src4.start();
+
+  contSound.nodes=[
+    {src:src1,filter:lp1,gain:g1,role:'rumble'},
+    {src:src2,filter:bp2,gain:g2,lfo:lfo,lfoGain:lfoGain,role:'wave'},
+    {src:src3,filter:hp3,gain:g3,lfo:lfo2,lfoGain:lfo2G,role:'foam'},
+    {src:src4,filter:bp4,gain:g4,role:'shore'}
+  ];
+
+  // Modulation: focus adjusts wave intensity and richness
+  contSound.modTimer=setInterval(function(){
+    if(!contSound.active||!amb.active)return;
+    var sc=amb.score,vol=(parseInt(document.getElementById('ambVol').value)||50)/100;
+    var t=ctx.currentTime;
+    var intensity=0.3+(sc/100)*0.7;
+    // Focused: bigger waves, more foam, wider spectrum
+    g1.gain.linearRampToValueAtTime(vol*0.25*intensity,t+2);
+    g2.gain.linearRampToValueAtTime(vol*0.35*intensity,t+2);
+    g3.gain.linearRampToValueAtTime(vol*0.12*intensity,t+2);
+    g4.gain.linearRampToValueAtTime(vol*0.12*intensity,t+2);
+    // Wave speed: focused = slightly faster waves
+    lfo.frequency.linearRampToValueAtTime(0.06+sc*0.0004,t+3); // 0.06-0.1Hz
+    lfoGain.gain.linearRampToValueAtTime(300+sc*3,t+2); // Wider sweep when focused
+    bp2.frequency.linearRampToValueAtTime(600+sc*4,t+2);
+  },3000);
+}
+
+function startCustomAudio(){
+  stopContinuous();
+  var url=document.getElementById('customAudioUrl').value.trim();
+  if(!url)return;
+  contSound.active=true;
+  var audio=new Audio();
+  audio.crossOrigin='anonymous';
+  audio.loop=true;
+  audio.src=url;
+  initAudio();
+  var ctx=amb.ctx;
+  var src=ctx.createMediaElementSource(audio);
+
+  // === FOCUS-RESPONSIVE AUDIO CHAIN ===
+  // Source → lowpass (clarity) → dry gain ─────────────→ mixer → master
+  //                            → reverb gain → reverb ──→ mixer
+  //                                        noise veil ──→ mixer
+
+  // 1. Lowpass filter: focused = open (12kHz+), distracted = muffled (800Hz)
+  var lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=6000;lp.Q.value=0.5;
+
+  // 2. Dry path (direct audio, louder when focused)
+  var dryGain=ctx.createGain();dryGain.gain.value=0.7;
+
+  // 3. Reverb send (more reverb when distracted = distant/spacey)
+  var revSend=ctx.createGain();revSend.gain.value=0.15;
+  // Small dedicated reverb for custom audio
+  var rvLen=Math.floor(ctx.sampleRate*2.5);
+  var rvBuf=ctx.createBuffer(2,rvLen,ctx.sampleRate);
+  for(var ch=0;ch<2;ch++){var d=rvBuf.getChannelData(ch);for(var i=0;i<rvLen;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/rvLen,2.5)}
+  var rev=ctx.createConvolver();rev.buffer=rvBuf;
+  var revOut=ctx.createGain();revOut.gain.value=0.3;
+
+  // 4. Noise veil: subtle noise that increases when distracted (like static/distance)
+  var noiseBuf=createNoiseBuffer(ctx,3);
+  var noiseSrc=ctx.createBufferSource();noiseSrc.buffer=noiseBuf;noiseSrc.loop=true;
+  var noiseLp=ctx.createBiquadFilter();noiseLp.type='lowpass';noiseLp.frequency.value=2000;noiseLp.Q.value=0.3;
+  var noiseGain=ctx.createGain();noiseGain.gain.value=0;
+
+  // 5. Mixer → master
+  var mixer=ctx.createGain();mixer.gain.value=1;
+
+  // Wire it up
+  src.connect(lp);
+  lp.connect(dryGain);dryGain.connect(mixer);
+  lp.connect(revSend);revSend.connect(rev);rev.connect(revOut);revOut.connect(mixer);
+  noiseSrc.connect(noiseLp);noiseLp.connect(noiseGain);noiseGain.connect(mixer);
+  mixer.connect(amb.master);
+
+  noiseSrc.start();
+  audio.play().catch(function(e){dbg('Custom audio error: '+e.message,'err')});
+  contSound.fileAudio=audio;
+  contSound.nodes=[
+    {gain:mixer,role:'custom'},
+    {gain:dryGain,role:'dry'},
+    {gain:revOut,role:'revOut'},
+    {gain:noiseGain,role:'noise'},
+    {src:noiseSrc,role:'noiseSrc'}
+  ];
+
+  // Focus modulation loop
+  contSound.modTimer=setInterval(function(){
+    if(!contSound.active||!amb.active)return;
+    var sc=amb.score,vol=(parseInt(document.getElementById('ambVol').value)||50)/100;
+    var t=ctx.currentTime;
+    var focus=sc/100; // 0 to 1
+
+    // Lowpass: distracted=800Hz (very muffled), focused=12000Hz (crystal clear)
+    lp.frequency.linearRampToValueAtTime(800+focus*11200,t+1.5);
+
+    // Dry volume: distracted=0.3, focused=0.9
+    dryGain.gain.linearRampToValueAtTime(vol*(0.3+focus*0.6),t+1.5);
+
+    // Reverb: distracted=heavy (0.5), focused=subtle (0.08)
+    revSend.gain.linearRampToValueAtTime(0.5-focus*0.42,t+1.5);
+    revOut.gain.linearRampToValueAtTime(vol*(0.5-focus*0.35),t+1.5);
+
+    // Noise veil: distracted=audible hiss (0.08), focused=silent (0)
+    noiseGain.gain.linearRampToValueAtTime(vol*0.1*(1-focus),t+1.5);
+
+    // Update status to show what's happening
+    var desc=focus>=0.7?'Clear ▲':focus>=0.4?'Normal ●':'Muffled ▼';
+    document.getElementById('ambStatus').textContent=desc;
+    document.getElementById('ambStatus').style.color=focus>=0.7?'var(--gn)':focus>=0.4?'var(--yl)':'var(--rd)';
+  },1500);
+
+  dbg('Custom audio loaded: '+url,'ok');
+  dbg('Focus modulates: filter (muffled↔clear), reverb (spacey↔intimate), noise veil (hissy↔silent)','info');
+}
+
+function stopContinuous(){
+  contSound.active=false;
+  if(contSound.modTimer){clearInterval(contSound.modTimer);contSound.modTimer=null}
+  for(var i=0;i<contSound.nodes.length;i++){
+    var n=contSound.nodes[i];
+    try{if(n.src)n.src.stop()}catch(e){}
+    try{if(n.lfo)n.lfo.stop()}catch(e){}
+    try{if(n.gain)n.gain.disconnect()}catch(e){}
+  }
+  contSound.nodes=[];
+  if(contSound.fileAudio){
+    try{contSound.fileAudio.pause();contSound.fileAudio.src=''}catch(e){}
+    contSound.fileAudio=null;
+  }
+}
+
+function isContinuousStyle(style){return style==='rain'||style==='ocean'||style==='custom'}
+
 function initAudio(){
   if(amb.ctx)return;
   amb.ctx=new(window.AudioContext||window.webkitAudioContext)();
@@ -1512,11 +1771,12 @@ function playTone(freq,type,vel){
 
 function scheduleNotes(){
   if(!amb.active)return;
-  if(S.paused){amb.timer=setTimeout(scheduleNotes,1000);return} // Check again in 1s
+  if(S.paused){amb.timer=setTimeout(scheduleNotes,1000);return}
   var style=document.getElementById('ambStyle').value;
+  if(isContinuousStyle(style))return; // Continuous styles use their own generators
   var cfg=STYLES[style]||STYLES.handpan;
   var sc=amb.score,notes=cfg.notes,type=cfg.type;
-  var vol=(parseInt(document.getElementById('ambVol').value)||30)/100;
+  var vol=(parseInt(document.getElementById('ambVol').value)||50)/100;
 
   // ===== FOCUS CONTROLS DENSITY =====
   // Focused (70-100): many simultaneous notes, rich layering, moderate tempo
@@ -1654,13 +1914,19 @@ function toggleAmbient(){
   if(on){
     initAudio();if(amb.ctx.state==='suspended')amb.ctx.resume();
     amb.active=true;
-    var vol=(parseInt(document.getElementById('ambVol').value)||30)/100;
+    var vol=(parseInt(document.getElementById('ambVol').value)||50)/100;
     amb.master.gain.linearRampToValueAtTime(vol,amb.ctx.currentTime+.5);
-    scheduleNotes();
+    var style=document.getElementById('ambStyle').value;
+    if(style==='rain')startRain();
+    else if(style==='ocean')startOcean();
+    else if(style==='custom')startCustomAudio();
+    else scheduleNotes();
     document.getElementById('ambStatus').textContent='Playing';
     document.getElementById('ambStatus').style.color='var(--gn)';
   }else{
-    amb.active=false;if(amb.timer){clearTimeout(amb.timer);amb.timer=null}
+    amb.active=false;
+    if(amb.timer){clearTimeout(amb.timer);amb.timer=null}
+    stopContinuous();
     if(amb.master)amb.master.gain.linearRampToValueAtTime(0,amb.ctx.currentTime+1);
     document.getElementById('ambStatus').textContent='Off';
     document.getElementById('ambStatus').style.color='var(--t3)';
@@ -1668,10 +1934,21 @@ function toggleAmbient(){
 }
 function updateAmbientVol(){
   if(!amb.ctx||!amb.active)return;
-  var vol=(parseInt(document.getElementById('ambVol').value)||30)/100;
+  var vol=(parseInt(document.getElementById('ambVol').value)||50)/100;
   amb.master.gain.linearRampToValueAtTime(vol,amb.ctx.currentTime+.3);
 }
-function updateAmbientStyle(){}
+function updateAmbientStyle(){
+  if(!amb.active)return;
+  if(amb.timer){clearTimeout(amb.timer);amb.timer=null}
+  stopContinuous();
+  var style=document.getElementById('ambStyle').value;
+  if(style==='rain')startRain();
+  else if(style==='ocean')startOcean();
+  else if(style==='custom')startCustomAudio();
+  else scheduleNotes();
+  var cu=document.getElementById('customAudioRow');
+  if(cu)cu.style.display=style==='custom'?'flex':'none';
+}
 function updateAmbientTone(focusScore){
   if(!amb.active)return;amb.score=focusScore;
   var lbl=focusScore>=70?'Focused ▲':focusScore>=40?'Moderate ●':'Low ▼';
