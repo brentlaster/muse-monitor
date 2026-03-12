@@ -927,12 +927,15 @@ function togglePause(){
   var bnr=document.getElementById('pBnr');
   if(S.paused){
     S.lastZoneTick=0;
-    S._pauseStart=Date.now(); // Track when pause started
+    S._pauseStart=Date.now();
     if(S.alertOn)clrAlert();
     btn.innerHTML='&#9654; Resume';
     btn.classList.add('on');
     bnr.classList.add('on');
     dbg('Paused — all data collection, processing, and alerts suspended','info');
+    // Immediately notify server so overlay responds instantly
+    try{fetch('/focus-score',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({score:S.score,state:'paused',paused:true,timestamp:Date.now()})}).catch(function(){})}catch(e){}
     if(widgetWin&&!widgetWin.closed){try{
       var wd=widgetWin.document;
       wd.getElementById('sc').textContent='';
@@ -953,6 +956,9 @@ function togglePause(){
     btn.innerHTML='&#9646;&#9646; Pause';
     btn.classList.remove('on');
     bnr.classList.remove('on');
+    // Immediately notify server so overlay resumes
+    try{fetch('/focus-score',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({score:S.score,state:'resumed',paused:false,timestamp:Date.now()})}).catch(function(){})}catch(e){}
     dbg('Resumed — buffers cleared, collecting fresh data','ok');
   }
 }

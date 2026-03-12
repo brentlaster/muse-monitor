@@ -215,6 +215,15 @@ class OverlayController:
             if self.visible:
                 self.window.orderOut_(None)
                 self.visible = False
+                self.last_bounds = None
+            return
+
+        # Hide overlay entirely when paused (headband is off)
+        if score_data.get('paused'):
+            if self.visible:
+                self.window.orderOut_(None)
+                self.visible = False
+                self.last_bounds = None  # Force position refresh on resume
             return
 
         score = score_data.get('score', -1)
