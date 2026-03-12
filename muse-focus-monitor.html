@@ -333,7 +333,7 @@ select.si2{width:auto;padding-right:6px;cursor:pointer;-webkit-appearance:auto}
           <option value="solfeggio">Solfeggio Frequencies</option>
         </select>
       </div>
-      <div class="sg2"><span class="sl2">Volume</span><input type="range" id="ambVol" min="0" max="100" value="30" style="width:80px;accent-color:var(--cy)" oninput="updateAmbientVol()"></div>
+      <div class="sg2"><span class="sl2">Volume</span><input type="range" id="ambVol" min="0" max="100" value="50" style="width:80px;accent-color:var(--cy)" oninput="updateAmbientVol()"></div>
       <div class="sg2" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--t3)" id="ambStatus">Off</div>
     </div>
     <div style="font-size:10px;color:var(--t3);margin-top:8px;line-height:1.5">
@@ -1350,13 +1350,13 @@ function initAudio(){
   var rl=ctx.sampleRate*3,rb=ctx.createBuffer(2,rl,ctx.sampleRate);
   for(var ch=0;ch<2;ch++){var d=rb.getChannelData(ch);for(var i=0;i<rl;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/rl,2.2)*(i<ctx.sampleRate*.05?2.5:1)}
   amb.reverb=ctx.createConvolver();amb.reverb.buffer=rb;
-  var rg=ctx.createGain();rg.gain.value=0.5;amb.reverb.connect(rg);rg.connect(amb.master);
+  var rg=ctx.createGain();rg.gain.value=0.6;amb.reverb.connect(rg);rg.connect(amb.master);
   // Delay
   amb.delay=ctx.createDelay(1);amb.delay.delayTime.value=0.37;
   var df=ctx.createGain();df.gain.value=0.25;amb.delay.connect(df);df.connect(amb.delay);
   var dg=ctx.createGain();dg.gain.value=0.2;amb.delay.connect(dg);dg.connect(amb.master);
   // Dry
-  amb.dry=ctx.createGain();amb.dry.gain.value=0.35;amb.dry.connect(amb.master);
+  amb.dry=ctx.createGain();amb.dry.gain.value=0.65;amb.dry.connect(amb.master);
   // Bus
   amb.bus=ctx.createGain();amb.bus.gain.value=1;
   amb.bus.connect(amb.reverb);amb.bus.connect(amb.delay);amb.bus.connect(amb.dry);
@@ -1459,30 +1459,33 @@ function playTone(freq,type,vel){
     o1.start(t);o2.start(t);o3.start(t);o4.start(t);o5.start(t);
     o1.stop(t+9);o2.stop(t+9);o3.stop(t+9);o4.stop(t+9);o5.stop(t+9);
   }else if(type==='rain'){
-    // Rain drop — short filtered noise burst
-    var buf=ctx.createBuffer(1,ctx.sampleRate*0.08,ctx.sampleRate);
+    // Rain drop — filtered noise burst
+    var dropLen=0.15+Math.random()*0.1; // 150-250ms per drop
+    var buf=ctx.createBuffer(1,Math.floor(ctx.sampleRate*dropLen),ctx.sampleRate);
     var d=buf.getChannelData(0);for(var ri=0;ri<d.length;ri++)d[ri]=(Math.random()*2-1);
     var src=ctx.createBufferSource();src.buffer=buf;
-    var bp=ctx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=freq;bp.Q.value=2+Math.random()*4;
+    var bp=ctx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=freq;bp.Q.value=0.8+Math.random()*1.5;
     var g=ctx.createGain();g.gain.setValueAtTime(0,t);
-    g.gain.linearRampToValueAtTime(v*.08,t+.002);
-    g.gain.exponentialRampToValueAtTime(.001,t+.06+Math.random()*.04);
+    g.gain.linearRampToValueAtTime(v*.6,t+.003);
+    g.gain.exponentialRampToValueAtTime(v*.15,t+.04);
+    g.gain.exponentialRampToValueAtTime(.001,t+dropLen);
     src.connect(bp);bp.connect(g);g.connect(amb.bus);
     src.start(t);
   }else if(type==='ocean'){
     // Ocean — long filtered noise sweep (wave crash/recede)
     var dur=3+Math.random()*3;
-    var buf=ctx.createBuffer(2,ctx.sampleRate*dur,ctx.sampleRate);
+    var buf=ctx.createBuffer(2,Math.floor(ctx.sampleRate*dur),ctx.sampleRate);
     for(var ch=0;ch<2;ch++){var d=buf.getChannelData(ch);for(var ri=0;ri<d.length;ri++)d[ri]=(Math.random()*2-1)}
     var src=ctx.createBufferSource();src.buffer=buf;
-    var lp=ctx.createBiquadFilter();lp.type='lowpass';lp.Q.value=0.5;
+    var lp=ctx.createBiquadFilter();lp.type='lowpass';lp.Q.value=0.3;
     // Wave shape: filter sweeps up then down
-    lp.frequency.setValueAtTime(freq*0.5,t);
-    lp.frequency.linearRampToValueAtTime(freq*2,t+dur*0.3); // Wave arrives
-    lp.frequency.exponentialRampToValueAtTime(freq*0.3,t+dur); // Wave recedes
+    lp.frequency.setValueAtTime(freq*0.3,t);
+    lp.frequency.linearRampToValueAtTime(freq*4,t+dur*0.3); // Wave crashes in
+    lp.frequency.exponentialRampToValueAtTime(freq*0.2,t+dur); // Wave recedes
     var g=ctx.createGain();g.gain.setValueAtTime(0,t);
-    g.gain.linearRampToValueAtTime(v*.06,t+dur*0.2);
-    g.gain.setValueAtTime(v*.06,t+dur*0.4);
+    g.gain.linearRampToValueAtTime(v*.5,t+dur*0.15); // Swell up
+    g.gain.setValueAtTime(v*.5,t+dur*0.35); // Hold
+    g.gain.linearRampToValueAtTime(v*.25,t+dur*0.6); // Start receding
     g.gain.exponentialRampToValueAtTime(.001,t+dur);
     src.connect(lp);lp.connect(g);g.connect(amb.bus);
     src.start(t);src.stop(t+dur+.1);
@@ -1590,11 +1593,11 @@ function scheduleNotes(){
     for(var ri=0;ri<rainExtra;ri++){
       var rf=notes[Math.floor(Math.random()*notes.length)];
       var rd=Math.random()*1.8;
-      setTimeout(function(f){return function(){playTone(f,'rain',vol*(0.3+Math.random()*0.4))}}(rf),rd*1000);
+      setTimeout(function(f){return function(){playTone(f,'rain',vol*(0.6+Math.random()*0.4))}}(rf),rd*1000);
     }
-    // Focused: add continuous background wash (low filtered noise)
-    if(sc>=50&&Math.random()>0.5){
-      setTimeout(function(){playTone(300+Math.random()*400,'ocean',vol*0.15)},Math.random()*1000);
+    // Focused: add continuous background wash
+    if(sc>=50&&Math.random()>0.4){
+      setTimeout(function(){playTone(200+Math.random()*500,'ocean',vol*0.35)},Math.random()*1000);
     }
   }
 
@@ -1604,7 +1607,7 @@ function scheduleNotes(){
     for(var oi=0;oi<extraWaves;oi++){
       var of2=notes[Math.floor(Math.random()*notes.length)];
       var od=1+Math.random()*2;
-      setTimeout(function(f){return function(){playTone(f,'ocean',vol*0.4)}}(of2),od*1000);
+      setTimeout(function(f){return function(){playTone(f,'ocean',vol*0.7)}}(of2),od*1000);
     }
   }
 
@@ -1652,7 +1655,7 @@ function toggleAmbient(){
     initAudio();if(amb.ctx.state==='suspended')amb.ctx.resume();
     amb.active=true;
     var vol=(parseInt(document.getElementById('ambVol').value)||30)/100;
-    amb.master.gain.linearRampToValueAtTime(vol*.5,amb.ctx.currentTime+.5);
+    amb.master.gain.linearRampToValueAtTime(vol,amb.ctx.currentTime+.5);
     scheduleNotes();
     document.getElementById('ambStatus').textContent='Playing';
     document.getElementById('ambStatus').style.color='var(--gn)';
@@ -1666,7 +1669,7 @@ function toggleAmbient(){
 function updateAmbientVol(){
   if(!amb.ctx||!amb.active)return;
   var vol=(parseInt(document.getElementById('ambVol').value)||30)/100;
-  amb.master.gain.linearRampToValueAtTime(vol*.5,amb.ctx.currentTime+.3);
+  amb.master.gain.linearRampToValueAtTime(vol,amb.ctx.currentTime+.3);
 }
 function updateAmbientStyle(){}
 function updateAmbientTone(focusScore){
