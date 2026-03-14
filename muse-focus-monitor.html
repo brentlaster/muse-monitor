@@ -326,6 +326,7 @@ select.si2{width:auto;padding-right:6px;cursor:pointer;-webkit-appearance:auto}
           <option value="lofi">Lo-fi Chords</option>
           <option value="forest">Forest Birds</option>
           <option value="rain">Rain</option>
+          <option value="rainbirds">Rain &amp; Birds</option>
           <option value="ocean">Ocean Waves</option>
           <option value="ambient">Ambient Pads</option>
           <option value="zen">Zen Bells</option>
@@ -334,10 +335,18 @@ select.si2{width:auto;padding-right:6px;cursor:pointer;-webkit-appearance:auto}
           <option value="custom">Custom Audio File</option>
         </select>
       </div>
-      <div class="sg2" id="customAudioRow" style="display:none">
-        <span class="sl2">URL/file</span>
-        <input type="text" class="si2" id="customAudioUrl" placeholder="https://... or local path" style="width:160px;font-size:9px">
-        <button class="b bg" onclick="if(amb.active){startCustomAudio()}" style="font-size:9px;padding:3px 6px">Load</button>
+      <div class="sg2" id="customAudioRow" style="display:none;flex-direction:column;gap:6px;width:100%">
+        <div id="audioDrop" style="border:2px dashed var(--bdr);border-radius:6px;padding:12px;text-align:center;font-size:10px;color:var(--t3);cursor:pointer;transition:all .2s" onclick="document.getElementById('audioFileInput').click()" ondragover="event.preventDefault();this.style.borderColor='var(--cy)';this.style.color='var(--cy)'" ondragleave="this.style.borderColor='var(--bdr)';this.style.color='var(--t3)'" ondrop="event.preventDefault();this.style.borderColor='var(--bdr)';this.style.color='var(--t3)';handleAudioDrop(event)">
+          &#127925; Drop audio file here or click to browse<br>
+          <span style="font-size:9px;color:var(--t3)">MP3, WAV, OGG, M4A</span>
+        </div>
+        <input type="file" id="audioFileInput" accept="audio/*" style="display:none" onchange="handleAudioFile(this.files[0])">
+        <div style="display:flex;gap:4px;align-items:center">
+          <span class="sl2" style="font-size:9px">or URL</span>
+          <input type="text" class="si2" id="customAudioUrl" placeholder="https://example.com/music.mp3" style="flex:1;font-size:9px">
+          <button class="b bg" onclick="loadCustomAudioFromUrl()" style="font-size:9px;padding:3px 6px">Load</button>
+        </div>
+        <div id="audioFileName" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--cy2);display:none"></div>
       </div>
       <div class="sg2"><span class="sl2">Volume</span><input type="range" id="ambVol" min="0" max="100" value="50" style="width:80px;accent-color:var(--cy)" oninput="updateAmbientVol()"></div>
       <div class="sg2" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--t3)" id="ambStatus">Off</div>
@@ -1345,9 +1354,13 @@ var STYLES={
     type:'rain'
   },
   ocean:{
-    // Ocean uses filtered noise sweeps — frequencies are wave "pitches"
     notes:[80,120,180,250,350,500,700],
     type:'ocean'
+  },
+  rainbirds:{
+    // Combined: continuous rain bed + discrete bird chirps that scale with focus
+    notes:[329.63,392.00,440,493.88,523.25,659.26,783.99,880,987.77,1046.50,1318.51,1479.98,1760,2093.00,2349.32,2637.02],
+    type:'chirp'
   },
   lofi:{
     // Lo-fi hip-hop chord voicings — 7th chords, jazzy
@@ -1492,49 +1505,236 @@ function startOcean(){
   },3000);
 }
 
-function startCustomAudio(){
+function startRainBirds(){
+  var ctx=amb.ctx;if(!ctx)return;
   stopContinuous();
+  contSound.active=true;
+  var noiseBuf=createNoiseBuffer(ctx,4);
+
+  // === RAIN LAYER (continuous) ===
+  var rainSrc=ctx.createBufferSource();rainSrc.buffer=noiseBuf;rainSrc.loop=true;
+  var rainLP=ctx.createBiquadFilter();rainLP.type='lowpass';rainLP.frequency.value=3000;rainLP.Q.value=0.3;
+  var rainHP=ctx.createBiquadFilter();rainHP.type='highpass';rainHP.frequency.value=400;rainHP.Q.value=0.3;
+  var rainGain=ctx.createGain();rainGain.gain.value=0.3;
+  rainSrc.connect(rainHP);rainHP.connect(rainLP);rainLP.connect(rainGain);rainGain.connect(amb.master);
+  rainSrc.start();
+
+  // Rain patter layer
+  var patterSrc=ctx.createBufferSource();patterSrc.buffer=noiseBuf;patterSrc.loop=true;
+  var patterBP=ctx.createBiquadFilter();patterBP.type='bandpass';patterBP.frequency.value=5000;patterBP.Q.value=0.5;
+  var patterGain=ctx.createGain();patterGain.gain.value=0.1;
+  patterSrc.connect(patterBP);patterBP.connect(patterGain);patterGain.connect(amb.master);
+  patterSrc.start();
+
+  // Low rumble
+  var rumbleSrc=ctx.createBufferSource();rumbleSrc.buffer=noiseBuf;rumbleSrc.loop=true;
+  var rumbleLP=ctx.createBiquadFilter();rumbleLP.type='lowpass';rumbleLP.frequency.value=180;rumbleLP.Q.value=0.5;
+  var rumbleGain=ctx.createGain();rumbleGain.gain.value=0.06;
+  rumbleSrc.connect(rumbleLP);rumbleLP.connect(rumbleGain);rumbleGain.connect(amb.master);
+  rumbleSrc.start();
+
+  contSound.nodes=[
+    {src:rainSrc,filter:rainLP,gain:rainGain,role:'rainWash'},
+    {src:patterSrc,filter:patterBP,gain:patterGain,role:'patter'},
+    {src:rumbleSrc,filter:rumbleLP,gain:rumbleGain,role:'rumble'}
+  ];
+
+  // === BIRD LAYER (scheduled chirps — density scales with focus) ===
+  var birdNotes=STYLES.rainbirds.notes;
+  var birdTimer=null;
+
+  function playBirdChirp(freq,vol){
+    if(!ctx||!contSound.active)return;
+    var t=ctx.currentTime;
+    // Primary chirp
+    var o=ctx.createOscillator();o.type='sine';
+    o.frequency.setValueAtTime(freq,t);
+    o.frequency.exponentialRampToValueAtTime(freq*(1.1+Math.random()*0.15),t+.04+Math.random()*0.03);
+    o.frequency.exponentialRampToValueAtTime(freq*(0.95+Math.random()*0.08),t+.12);
+    var g=ctx.createGain();g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(vol*0.13,t+.015);
+    g.gain.exponentialRampToValueAtTime(vol*0.04,t+.1);
+    g.gain.exponentialRampToValueAtTime(.001,t+.4+Math.random()*0.2);
+    o.connect(g);g.connect(amb.master);
+    o.start(t);o.stop(t+.7);
+
+    // Response chirp (slightly higher, delayed)
+    if(Math.random()>0.35){
+      var o2=ctx.createOscillator();o2.type='sine';
+      var delay=0.15+Math.random()*0.15;
+      var f2=freq*(1.02+Math.random()*0.08);
+      o2.frequency.setValueAtTime(f2,t+delay);
+      o2.frequency.exponentialRampToValueAtTime(f2*1.18,t+delay+.04);
+      o2.frequency.exponentialRampToValueAtTime(f2*0.97,t+delay+.1);
+      var g2=ctx.createGain();g2.gain.setValueAtTime(0,t+delay);
+      g2.gain.linearRampToValueAtTime(vol*0.08,t+delay+.012);
+      g2.gain.exponentialRampToValueAtTime(.001,t+delay+.35);
+      o2.connect(g2);g2.connect(amb.master);
+      o2.start(t+delay);o2.stop(t+delay+.5);
+    }
+
+    // Trill (rapid repeated chirps — only when very focused)
+    if(Math.random()>0.7&&amb.score>=65){
+      var trillCount=2+Math.floor(Math.random()*3);
+      for(var ti=0;ti<trillCount;ti++){
+        (function(idx){
+          var td=0.5+idx*0.08;
+          var ot=ctx.createOscillator();ot.type='sine';
+          var ft=freq*(1.0+Math.random()*0.05);
+          ot.frequency.setValueAtTime(ft,t+td);
+          ot.frequency.exponentialRampToValueAtTime(ft*1.12,t+td+.025);
+          var gt=ctx.createGain();gt.gain.setValueAtTime(0,t+td);
+          gt.gain.linearRampToValueAtTime(vol*0.05,t+td+.008);
+          gt.gain.exponentialRampToValueAtTime(.001,t+td+.12);
+          ot.connect(gt);gt.connect(amb.master);
+          ot.start(t+td);ot.stop(t+td+.15);
+        })(ti);
+      }
+    }
+  }
+
+  function scheduleBirds(){
+    if(!contSound.active||!amb.active)return;
+    var sc=amb.score;
+    var vol=(parseInt(document.getElementById('ambVol').value)||50)/100;
+
+    // Focus → bird density
+    // Deep focus (70-100): busy dawn chorus, many species, 3-6 birds per event
+    // Moderate (40-69): a few birds, 1-3 per event
+    // Distracted (0-39): rare single distant call
+    var birdCount,interval;
+    if(sc>=70){
+      birdCount=3+Math.floor(Math.random()*4); // 3-6 birds
+      interval=800+Math.random()*1200;          // Every 0.8-2s
+    }else if(sc>=50){
+      birdCount=1+Math.floor(Math.random()*2);  // 1-2 birds
+      interval=2000+Math.random()*2000;          // Every 2-4s
+    }else if(sc>=30){
+      birdCount=Math.random()>0.5?1:0;           // Maybe 1 bird
+      interval=4000+Math.random()*3000;           // Every 4-7s
+    }else{
+      birdCount=Math.random()>0.8?1:0;            // Rare single bird
+      interval=6000+Math.random()*5000;            // Every 6-11s
+    }
+
+    // Pick birds from different registers — focused gets more variety
+    for(var bi=0;bi<birdCount;bi++){
+      var registerStart=sc>=60?0:Math.floor(birdNotes.length*0.3);
+      var registerEnd=sc>=70?birdNotes.length:Math.floor(birdNotes.length*0.7);
+      var idx=registerStart+Math.floor(Math.random()*(registerEnd-registerStart));
+      var freq=birdNotes[Math.min(idx,birdNotes.length-1)];
+      var delay=bi*(0.2+Math.random()*0.6); // Stagger birds
+      var bv=vol*(0.4+Math.random()*0.4)*(bi===0?1:0.6); // First bird louder
+      setTimeout(function(f,v){return function(){playBirdChirp(f,v)}}(freq,bv),delay*1000);
+    }
+
+    birdTimer=setTimeout(scheduleBirds,interval);
+  }
+
+  // Start bird scheduler
+  scheduleBirds();
+
+  // Rain modulation (same as pure rain)
+  contSound.modTimer=setInterval(function(){
+    if(!contSound.active||!amb.active)return;
+    var sc=amb.score,vol=(parseInt(document.getElementById('ambVol').value)||50)/100;
+    var t=ctx.currentTime;
+    var intensity=0.3+(sc/100)*0.7;
+    // Rain stays relatively constant, slight brightness change with focus
+    rainGain.gain.linearRampToValueAtTime(vol*0.35*intensity,t+1);
+    patterGain.gain.linearRampToValueAtTime(vol*0.12*intensity,t+1);
+    rumbleGain.gain.linearRampToValueAtTime(vol*0.08*intensity,t+1);
+    rainLP.frequency.linearRampToValueAtTime(1500+sc*25,t+1);
+    // Subtle drift
+    var drift=Math.sin(Date.now()/9000)*400;
+    rainLP.frequency.linearRampToValueAtTime(1500+sc*25+drift,t+2);
+    // Status
+    var label=sc>=70?'Dawn chorus ▲':sc>=40?'A few birds ●':'Quiet ▼';
+    document.getElementById('ambStatus').textContent=label;
+    document.getElementById('ambStatus').style.color=sc>=70?'var(--gn)':sc>=40?'var(--yl)':'var(--rd)';
+  },2000);
+
+  // Store bird timer for cleanup
+  var origStop=stopContinuous;
+  contSound._birdTimer=birdTimer;
+  // Override cleanup to also clear bird timer
+  var cleanupBirds=function(){
+    if(birdTimer)clearTimeout(birdTimer);
+    birdTimer=null;
+  };
+  // Attach to nodes for cleanup
+  contSound.nodes.push({role:'birdScheduler',_cleanup:cleanupBirds});
+}
+
+var _customAudioBlobUrl=null; // Persists across style switches
+
+function handleAudioDrop(e){
+  var file=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(file)handleAudioFile(file);
+}
+
+function handleAudioFile(file){
+  if(!file)return;
+  if(!file.type.startsWith('audio/')){dbg('Not an audio file: '+file.type,'err');return}
+  // Revoke old blob URL
+  if(_customAudioBlobUrl)URL.revokeObjectURL(_customAudioBlobUrl);
+  _customAudioBlobUrl=URL.createObjectURL(file);
+  document.getElementById('audioFileName').textContent='♫ '+file.name+' ('+Math.round(file.size/1024)+'KB)';
+  document.getElementById('audioFileName').style.display='block';
+  document.getElementById('audioDrop').innerHTML='&#9989; '+file.name+'<br><span style="font-size:9px;color:var(--t3)">Drop another to replace</span>';
+  dbg('Audio file loaded: '+file.name+' ('+Math.round(file.size/1024)+'KB)','ok');
+  // Auto-start if ambient is on
+  if(amb.active)startCustomAudio(_customAudioBlobUrl);
+}
+
+function loadCustomAudioFromUrl(){
   var url=document.getElementById('customAudioUrl').value.trim();
-  if(!url)return;
+  if(!url){dbg('Enter a URL first','warn');return}
+  if(!url.startsWith('http')){dbg('URL must start with http:// or https://','err');return}
+  document.getElementById('audioFileName').textContent='♫ '+url.split('/').pop();
+  document.getElementById('audioFileName').style.display='block';
+  if(amb.active)startCustomAudio(url);
+}
+
+function startCustomAudio(audioUrl){
+  stopContinuous();
+  // Use provided URL, or blob URL from file, or text input URL
+  var url=audioUrl||_customAudioBlobUrl||document.getElementById('customAudioUrl').value.trim();
+  if(!url){
+    dbg('No audio loaded — drop a file or enter a URL','warn');
+    document.getElementById('ambStatus').textContent='No audio';
+    document.getElementById('ambStatus').style.color='var(--rd)';
+    return;
+  }
   contSound.active=true;
   var audio=new Audio();
-  audio.crossOrigin='anonymous';
+  // Only set crossOrigin for HTTP URLs (breaks blob: URLs)
+  if(url.startsWith('http'))audio.crossOrigin='anonymous';
   audio.loop=true;
   audio.src=url;
   initAudio();
   var ctx=amb.ctx;
-  var src=ctx.createMediaElementSource(audio);
+  var src;
+  try{src=ctx.createMediaElementSource(audio)}
+  catch(e){dbg('Audio source error: '+e.message+' — trying direct playback','warn');
+    audio.play().catch(function(e2){dbg('Playback error: '+e2.message,'err')});
+    contSound.fileAudio=audio;contSound.nodes=[];return}
 
   // === FOCUS-RESPONSIVE AUDIO CHAIN ===
-  // Source → lowpass (clarity) → dry gain ─────────────→ mixer → master
-  //                            → reverb gain → reverb ──→ mixer
-  //                                        noise veil ──→ mixer
-
-  // 1. Lowpass filter: focused = open (12kHz+), distracted = muffled (800Hz)
   var lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=6000;lp.Q.value=0.5;
-
-  // 2. Dry path (direct audio, louder when focused)
   var dryGain=ctx.createGain();dryGain.gain.value=0.7;
-
-  // 3. Reverb send (more reverb when distracted = distant/spacey)
   var revSend=ctx.createGain();revSend.gain.value=0.15;
-  // Small dedicated reverb for custom audio
   var rvLen=Math.floor(ctx.sampleRate*2.5);
   var rvBuf=ctx.createBuffer(2,rvLen,ctx.sampleRate);
   for(var ch=0;ch<2;ch++){var d=rvBuf.getChannelData(ch);for(var i=0;i<rvLen;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/rvLen,2.5)}
   var rev=ctx.createConvolver();rev.buffer=rvBuf;
   var revOut=ctx.createGain();revOut.gain.value=0.3;
-
-  // 4. Noise veil: subtle noise that increases when distracted (like static/distance)
   var noiseBuf=createNoiseBuffer(ctx,3);
   var noiseSrc=ctx.createBufferSource();noiseSrc.buffer=noiseBuf;noiseSrc.loop=true;
   var noiseLp=ctx.createBiquadFilter();noiseLp.type='lowpass';noiseLp.frequency.value=2000;noiseLp.Q.value=0.3;
   var noiseGain=ctx.createGain();noiseGain.gain.value=0;
-
-  // 5. Mixer → master
   var mixer=ctx.createGain();mixer.gain.value=1;
 
-  // Wire it up
   src.connect(lp);
   lp.connect(dryGain);dryGain.connect(mixer);
   lp.connect(revSend);revSend.connect(rev);rev.connect(revOut);revOut.connect(mixer);
@@ -1542,7 +1742,11 @@ function startCustomAudio(){
   mixer.connect(amb.master);
 
   noiseSrc.start();
-  audio.play().catch(function(e){dbg('Custom audio error: '+e.message,'err')});
+  audio.play().catch(function(e){
+    dbg('Custom audio playback failed: '+e.message,'err');
+    document.getElementById('ambStatus').textContent='Error';
+    document.getElementById('ambStatus').style.color='var(--rd)';
+  });
   contSound.fileAudio=audio;
   contSound.nodes=[
     {gain:mixer,role:'custom'},
@@ -1587,6 +1791,7 @@ function stopContinuous(){
   if(contSound.modTimer){clearInterval(contSound.modTimer);contSound.modTimer=null}
   for(var i=0;i<contSound.nodes.length;i++){
     var n=contSound.nodes[i];
+    try{if(n._cleanup)n._cleanup()}catch(e){}
     try{if(n.src)n.src.stop()}catch(e){}
     try{if(n.lfo)n.lfo.stop()}catch(e){}
     try{if(n.gain)n.gain.disconnect()}catch(e){}
@@ -1598,7 +1803,7 @@ function stopContinuous(){
   }
 }
 
-function isContinuousStyle(style){return style==='rain'||style==='ocean'||style==='custom'}
+function isContinuousStyle(style){return style==='rain'||style==='ocean'||style==='rainbirds'||style==='custom'}
 
 function initAudio(){
   if(amb.ctx)return;
@@ -1917,7 +2122,10 @@ function toggleAmbient(){
     var vol=(parseInt(document.getElementById('ambVol').value)||50)/100;
     amb.master.gain.linearRampToValueAtTime(vol,amb.ctx.currentTime+.5);
     var style=document.getElementById('ambStyle').value;
+    var cu=document.getElementById('customAudioRow');
+    if(cu)cu.style.display=style==='custom'?'flex':'none';
     if(style==='rain')startRain();
+    else if(style==='rainbirds')startRainBirds();
     else if(style==='ocean')startOcean();
     else if(style==='custom')startCustomAudio();
     else scheduleNotes();
@@ -1938,16 +2146,18 @@ function updateAmbientVol(){
   amb.master.gain.linearRampToValueAtTime(vol,amb.ctx.currentTime+.3);
 }
 function updateAmbientStyle(){
+  // Always show/hide custom panel based on dropdown
+  var style=document.getElementById('ambStyle').value;
+  var cu=document.getElementById('customAudioRow');
+  if(cu)cu.style.display=style==='custom'?'flex':'none';
   if(!amb.active)return;
   if(amb.timer){clearTimeout(amb.timer);amb.timer=null}
   stopContinuous();
-  var style=document.getElementById('ambStyle').value;
   if(style==='rain')startRain();
+  else if(style==='rainbirds')startRainBirds();
   else if(style==='ocean')startOcean();
   else if(style==='custom')startCustomAudio();
   else scheduleNotes();
-  var cu=document.getElementById('customAudioRow');
-  if(cu)cu.style.display=style==='custom'?'flex':'none';
 }
 function updateAmbientTone(focusScore){
   if(!amb.active)return;amb.score=focusScore;
