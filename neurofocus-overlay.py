@@ -309,7 +309,6 @@ class OverlayController:
 
     def _update_inner(self):
         if not hasattr(self, '_tick'): self._tick = 0
-        if not hasattr(self, '_last_app'): self._last_app = ''
         self._tick += 1
 
         # Get focus score
@@ -319,7 +318,6 @@ class OverlayController:
                 self.window.orderOut_(None)
                 self.visible = False
                 self.last_bounds = None
-                print(f"  [hide] no score data")
             return
 
         # Hide overlay entirely when paused
@@ -339,21 +337,14 @@ class OverlayController:
             if self.visible:
                 self.window.orderOut_(None)
                 self.visible = False
-                print(f"  [hide] no window data from server")
             return
 
         app_name = win_data.get('app', '')
-
-        # Log every app switch
-        if app_name != self._last_app:
-            print(f"  [switch] {self._last_app} -> {app_name}  bounds=({win_data['x']},{win_data['y']},{win_data['w']},{win_data['h']})")
-            self._last_app = app_name
 
         if win_data['w'] == 0 and win_data['h'] == 0:
             if self.visible:
                 self.window.orderOut_(None)
                 self.visible = False
-                print(f"  [hide] {app_name} returned 0x0 bounds")
             return
 
         # Fetch overlay settings periodically (every 10 polls = ~5 seconds)
@@ -382,7 +373,6 @@ class OverlayController:
             if self.visible:
                 self.window.orderOut_(None)
                 self.visible = False
-                print(f"  [hide] {app_name} too small: {w}x{h}")
             return
 
         bounds = (x, y, w, h)
@@ -401,7 +391,6 @@ class OverlayController:
         if not self.visible:
             self.window.orderFront_(None)
             self.visible = True
-            print(f"  [show] {app_name} at appkit=({x},{y}) {w}x{h}  primary_h={primary_h}")
 
         # Subliminal flash check
         self.trigger_subliminal_flash()

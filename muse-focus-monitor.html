@@ -420,6 +420,21 @@ function applyPreset(){
   if(sel==='custom')return;
   var p=PRESETS[sel];if(!p)return;
   document.querySelectorAll('.btgt').forEach(function(inp){var b=inp.dataset.band;if(p[b]!==undefined)inp.value=p[b]});
+  // Reset auto-calibration — the metric distribution changes with each preset
+  if(typeof S!=='undefined'&&S.cal){
+    S.cal.history=[];
+    S.cal.samples=0;
+    S.cal.ema=null;
+    if(sel!=='deepfocus'&&S.cal.manualBaseline!==null){
+      S.cal.manualBaseline=null;
+      S.cal.manualRange=null;
+      dbg&&dbg('Manual calibration cleared — preset changed to '+sel+' (recalibrating auto)','info');
+    }
+  }
+  // Reset smoothed score so it adapts quickly
+  if(typeof S!=='undefined')S.engSmooth=0;
+  if(typeof dbg==='function')dbg('Preset: '+sel+' — '+p.desc+' — scoring formula adapted','ok');
+  if(typeof saveAudioSettings==='function')saveAudioSettings();
 }
 applyPreset(); // Set default
 
@@ -684,19 +699,63 @@ function fft(s){var N=s.length,sp=[];for(var k=0;k<N/2;k++){var re=0,im=0;for(va
 // bpowFromPSD superseded by bpowFromPSD_IAF (with Individual Alpha Frequency adjustment)
 
 // ==================== COMPOSITE FOCUS METRIC ====================
-// Combines research-validated indices (more robust than single ratio):
-// 1. Beta/(Alpha+Theta) — engagement index (Pope et al., 1995)
-// 2. Beta/Theta — attention index (Monastra et al., 2005)
-// 3. Relative beta — proportion of total power in beta
-// 4. Alpha/Theta — alertness ratio
+// Adapts to the selected preset:
+// - Deep Focus: rewards high beta engagement (Pope et al. engagement index)
+// - Creative Flow: rewards elevated theta/alpha (divergent thinking)
+// - Relaxed Alert: rewards dominant alpha (calm alertness)
+// - Meditation: rewards high theta (deep meditative state)
+// - Active Learning: rewards balanced theta+beta (encoding)
+// - Custom: uses band target match scoring
 function computeFocusMetrics(bp){
   var total=bp.delta+bp.theta+bp.alpha+bp.beta+bp.gamma+0.0001;
+  var relD=bp.delta/total,relT=bp.theta/total,relA=bp.alpha/total,relB=bp.beta/total,relG=bp.gamma/total;
   var engagement=bp.beta/(bp.alpha+bp.theta+0.0001);
   var attention=bp.beta/(bp.theta+0.0001);
-  var relBeta=bp.beta/total;
   var alertness=bp.alpha/(bp.theta+0.0001);
-  // Weighted composite
-  return engagement*0.40+attention*0.25+relBeta*5.0*0.20+alertness*0.15;
+  var relaxation=bp.alpha/(bp.beta+0.0001);
+  var thetaRatio=bp.theta/(bp.beta+0.0001);
+
+  var preset=(document.getElementById('presetSel')||{}).value||'deepfocus';
+
+  if(preset==='deepfocus'){
+    // Original: high beta, low theta/alpha
+    return engagement*0.40+attention*0.25+relB*5.0*0.20+alertness*0.15;
+  }else if(preset==='creative'){
+    // Creative flow: elevated theta+alpha, moderate beta
+    return relT*4.0*0.30+relA*4.0*0.25+thetaRatio*0.25+engagement*0.20;
+  }else if(preset==='relaxed'){
+    // Relaxed alert: dominant alpha, suppressed beta
+    return relA*5.0*0.40+alertness*0.30+relaxation*0.15+(1-relB)*0.15;
+  }else if(preset==='meditate'){
+    // Meditation: high theta, high alpha, low beta
+    return relT*5.0*0.35+relA*4.0*0.25+thetaRatio*0.25+(1-relB)*2.0*0.15;
+  }else if(preset==='learning'){
+    // Active learning: balanced theta (encoding) + beta (attention)
+    return engagement*0.30+relT*4.0*0.25+relB*4.0*0.25+alertness*0.20;
+  }else{
+    // Custom: compute match to whatever targets are set
+    return _computeTargetMatch(relD,relT,relA,relB,relG);
+  }
+}
+
+function _computeTargetMatch(relD,relT,relA,relB,relG){
+  // Read current target values from sliders
+  var tgt={};
+  document.querySelectorAll('.btgt').forEach(function(inp){
+    tgt[inp.dataset.band]=(parseFloat(inp.value)||0)/100;
+  });
+  if(!tgt.D)return 0.5; // Fallback
+  var actual=[relD,relT,relA,relB,relG];
+  var target=[tgt.D||0,tgt.T||0,tgt.A||0,tgt.Be||0,tgt.G||0];
+  // Normalize targets
+  var tSum=0;for(var i=0;i<target.length;i++)tSum+=target[i];
+  if(tSum>0)for(var i=0;i<target.length;i++)target[i]/=tSum;
+  // Cosine similarity (0 to 1, higher = better match)
+  var dot=0,magA=0,magT=0;
+  for(var i=0;i<5;i++){dot+=actual[i]*target[i];magA+=actual[i]*actual[i];magT+=target[i]*target[i]}
+  var cos=dot/(Math.sqrt(magA)*Math.sqrt(magT)+0.0001);
+  // Scale to comparable range with other metrics (0-4ish)
+  return cos*4.0;
 }
 
 // Signal quality
@@ -2729,6 +2788,7 @@ function saveAudioSettings(){
       volume:parseInt(document.getElementById('ambVol').value)||50,
       customUrl:document.getElementById('customAudioUrl').value||'',
       customFileName:(document.getElementById('audioFileName')||{}).textContent||'',
+      preset:document.getElementById('presetSel').value||'deepfocus',
       // Overlay settings
       ovBright:parseInt(document.getElementById('ovBright').value)||100,
       ovBorder:parseInt(document.getElementById('ovBorder').value)||4,
@@ -2750,10 +2810,15 @@ function loadAudioSettings(){
     if(data.style){
       var sel=document.getElementById('ambStyle');
       if(sel){sel.value=data.style;
-        // Show custom panel if style is custom
         var cu=document.getElementById('customAudioRow');
         if(cu)cu.style.display=data.style==='custom'?'flex':'none';
       }
+    }
+
+    // Restore band target preset
+    if(data.preset){
+      var psel=document.getElementById('presetSel');
+      if(psel){psel.value=data.preset;applyPreset()}
     }
 
     // Restore volume
