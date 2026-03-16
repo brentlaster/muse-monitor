@@ -131,20 +131,39 @@ class NeuroFocusHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json(overlay_settings)
         elif self.path == '/subliminal-messages':
             self.send_subliminal_messages()
+        elif self.path == '/favicon.ico':
+            self.send_response(204)
+            self.end_headers()
         else:
             super().do_GET()
 
     def send_subliminal_messages(self):
         """Read messages from subliminal-messages.txt."""
         try:
-            msg_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'subliminal-messages.txt')
-            if os.path.exists(msg_file):
+            fname = 'subliminal-messages.txt'
+            # Check multiple locations
+            candidates = [
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), fname),  # Same dir as script
+                os.path.join(os.getcwd(), fname),                                 # Current working dir
+                os.path.abspath(fname),                                           # Relative to CWD
+            ]
+            msg_file = None
+            for c in candidates:
+                if os.path.exists(c):
+                    msg_file = c
+                    break
+
+            if msg_file:
                 with open(msg_file, 'r') as f:
                     lines = [l.strip() for l in f.readlines() if l.strip() and not l.strip().startswith('#')]
+                print(f"  [subliminal] Loaded {len(lines)} messages from {msg_file}")
                 self.send_json({'messages': lines})
             else:
-                self.send_json({'messages': [], 'error': 'subliminal-messages.txt not found'})
+                checked = ', '.join(os.path.dirname(c) for c in candidates)
+                print(f"  [subliminal] subliminal-messages.txt not found. Checked: {checked}")
+                self.send_json({'messages': [], 'error': f'subliminal-messages.txt not found (checked: {checked})'})
         except Exception as e:
+            print(f"  [subliminal] Error: {e}")
             self.send_json({'messages': [], 'error': str(e)})
 
     def do_POST(self):
@@ -223,8 +242,16 @@ class NeuroFocusHandler(http.server.SimpleHTTPRequestHandler):
 
     def log_message(self, format, *args):
         msg = str(args)
-        if '/active-app' not in msg and '/focus-score' not in msg and '/active-window' not in msg and '/overlay-settings' not in msg and '/subliminal' not in msg and '/upload-audio' not in msg:
+        if '/active-app' not in msg and '/focus-score' not in msg and '/active-window' not in msg and '/overlay-settings' not in msg and '/subliminal' not in msg and '/upload-audio' not in msg and '/favicon' not in msg:
             super().log_message(format, *args)
+
+    def send_error(self, code, message=None, explain=None):
+        """Override to show which path generated the error and suppress favicon noise."""
+        if hasattr(self, 'path') and '/favicon' in self.path:
+            return  # Suppress favicon 404 noise entirely
+        if code == 404 and hasattr(self, 'path'):
+            print(f"  [404] {self.path}")
+        super().send_error(code, message, explain)
 
 
 if __name__ == '__main__':
