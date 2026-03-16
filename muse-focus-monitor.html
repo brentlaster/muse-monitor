@@ -2188,6 +2188,7 @@ function toggleAmbient(){
     document.getElementById('ambStatus').textContent='Off';
     document.getElementById('ambStatus').style.color='var(--t3)';
   }
+  saveAudioSettings();
 }
 function updateAmbientVol(){
   if(!amb.ctx||!amb.active)return;
@@ -2723,6 +2724,7 @@ window.addEventListener('beforeunload',function(){
 function saveAudioSettings(){
   try{
     var data={
+      ambientOn:document.getElementById('sAmb').checked,
       style:document.getElementById('ambStyle').value,
       volume:parseInt(document.getElementById('ambVol').value)||50,
       customUrl:document.getElementById('customAudioUrl').value||'',
@@ -2797,7 +2799,16 @@ function loadAudioSettings(){
     // Push restored overlay settings to server
     updateOverlaySettings();
 
-    dbg('Audio settings restored: style='+data.style+', vol='+data.volume+(data.customUrl?' url='+data.customUrl:''),'info');
+    // Restore ambient on/off — activate if it was on
+    if(data.ambientOn){
+      var ambCb=document.getElementById('sAmb');
+      if(ambCb&&!ambCb.checked){
+        ambCb.checked=true;
+        toggleAmbient();
+      }
+    }
+
+    dbg('Audio settings restored: style='+data.style+', vol='+data.volume+(data.ambientOn?' [ambient ON]':'')+(data.customUrl?' url='+data.customUrl:''),'info');
   }catch(e){}
 }
 
