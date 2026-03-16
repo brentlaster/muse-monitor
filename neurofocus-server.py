@@ -21,6 +21,7 @@ import json
 import subprocess
 import os
 import threading
+import time
 
 import socket
 
@@ -30,11 +31,42 @@ class ReusableHTTPServer(http.server.HTTPServer):
     allow_reuse_address = True
     allow_reuse_port = True
 
+class ThreadedHTTPServer(ReusableHTTPServer):
+    """Handle each request in a separate thread."""
+    def process_request(self, request, client_address):
+        t = threading.Thread(target=self._handle, args=(request, client_address), daemon=True)
+        t.start()
+    def _handle(self, request, client_address):
+        try:
+            self.finish_request(request, client_address)
+        except Exception:
+            pass
+        try:
+            self.shutdown_request(request)
+        except Exception:
+            pass
+
 # Shared state
 current_score = {'score': -1, 'state': 'unknown', 'paused': False, 'timestamp': 0}
 overlay_settings = {'brightness': 100, 'border_width': 4, 'glow_width': 12, 'subliminal': False, 'subliminal_interval': 20}
 _score_lock = threading.Lock()
 _settings_lock = threading.Lock()
+
+# Cached window bounds — updated by background thread so endpoints respond instantly
+_window_cache = {'app': 'unknown', 'x': 0, 'y': 0, 'w': 0, 'h': 0}
+_window_lock = threading.Lock()
+
+def _window_poller():
+    """Background thread: polls active window bounds every ~1 second."""
+    while True:
+        try:
+            data = get_active_window_bounds()
+            if data:
+                with _window_lock:
+                    _window_cache.update(data)
+        except Exception:
+            pass
+        time.sleep(1.0)
 
 
 def get_active_app_name():
@@ -105,27 +137,85 @@ def get_active_window_bounds():
         if result.returncode == 0:
             parts = result.stdout.strip().split(',')
             if len(parts) >= 5:
-                return {
+                data = {
                     'app': parts[0].strip(),
                     'x': int(parts[1].strip()),
                     'y': int(parts[2].strip()),
                     'w': int(parts[3].strip()),
                     'h': int(parts[4].strip())
                 }
+                # If AppleScript got valid bounds, return them
+                if data['w'] > 50 and data['h'] > 50:
+                    return data
+                # Otherwise try Quartz CGWindowList fallback
+                return _get_window_bounds_quartz(data['app']) or data
     except Exception:
         pass
     return {'app': 'Unknown', 'x': 0, 'y': 0, 'w': 0, 'h': 0}
 
 
+def _get_window_bounds_quartz(app_name):
+    """Fallback: use Quartz CGWindowListCopyWindowInfo via JXA.
+    Works for apps that don\'t expose AX windows (Camtasia, PowerPoint, etc.)."""
+    try:
+        jxa_script = """
+        ObjC.import("Quartz");
+        var opts = $.kCGWindowListOptionOnScreenOnly | $.kCGWindowListExcludeDesktopElements;
+        var list = $.CGWindowListCopyWindowInfo(opts, 0);
+        var count = $.CFArrayGetCount(list);
+        var best = null, bestArea = 0;
+        var appName = "APPNAME";
+        for (var i = 0; i < count; i++) {
+            var info = ObjC.castRefToObject($.CFArrayGetValueAtIndex(list, i));
+            var owner = info.objectForKey("kCGWindowOwnerName");
+            if (owner) {
+                var ownerStr = owner.js;
+                if (ownerStr.indexOf(appName) >= 0) {
+                    var layer = info.objectForKey("kCGWindowLayer").js;
+                    if (layer > 0) continue;
+                    var b = info.objectForKey("kCGWindowBounds");
+                    if (b) {
+                        var wx = b.objectForKey("X").js;
+                        var wy = b.objectForKey("Y").js;
+                        var ww = b.objectForKey("Width").js;
+                        var wh = b.objectForKey("Height").js;
+                        if (ww > 200 && wh > 200 && ww * wh > bestArea) {
+                            bestArea = ww * wh;
+                            best = Math.round(wx) + "," + Math.round(wy) + "," + Math.round(ww) + "," + Math.round(wh);
+                        }
+                    }
+                }
+            }
+        }
+        best || "0,0,0,0";
+        """.replace("APPNAME", app_name.replace('"', '\\"'))
+
+        result = subprocess.run(
+            ['osascript', '-l', 'JavaScript', '-e', jxa_script],
+            capture_output=True, text=True, timeout=3
+        )
+        if result.returncode == 0:
+            parts = result.stdout.strip().split(',')
+            if len(parts) >= 4:
+                x, y, w, h = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
+                if w > 50 and h > 50:
+                    return {'app': app_name, 'x': x, 'y': y, 'w': w, 'h': h}
+    except Exception:
+        pass
+    return None
+
+
 class NeuroFocusHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/active-app':
-            self.send_json({'app': get_active_app_name()})
+            with _window_lock:
+                self.send_json({'app': _window_cache.get('app', 'unknown')})
         elif self.path == '/focus-score':
             with _score_lock:
                 self.send_json(current_score)
         elif self.path == '/active-window':
-            self.send_json(get_active_window_bounds())
+            with _window_lock:
+                self.send_json(dict(_window_cache))
         elif self.path == '/overlay-settings':
             with _settings_lock:
                 self.send_json(overlay_settings)
@@ -274,7 +364,10 @@ if __name__ == '__main__':
 ║  Press Ctrl+C to stop                            ║
 ╚══════════════════════════════════════════════════╝
 """)
-    with ReusableHTTPServer(('', PORT), NeuroFocusHandler) as httpd:
+    with ThreadedHTTPServer(('', PORT), NeuroFocusHandler) as httpd:
+        # Start background window bounds poller
+        t = threading.Thread(target=_window_poller, daemon=True)
+        t.start()
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:

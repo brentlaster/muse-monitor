@@ -309,6 +309,7 @@ class OverlayController:
 
     def _update_inner(self):
         if not hasattr(self, '_tick'): self._tick = 0
+        if not hasattr(self, '_last_app'): self._last_app = ''
         self._tick += 1
 
         # Get focus score
@@ -318,14 +319,15 @@ class OverlayController:
                 self.window.orderOut_(None)
                 self.visible = False
                 self.last_bounds = None
+                print(f"  [hide] no score data")
             return
 
-        # Hide overlay entirely when paused (headband is off)
+        # Hide overlay entirely when paused
         if score_data.get('paused'):
             if self.visible:
                 self.window.orderOut_(None)
                 self.visible = False
-                self.last_bounds = None  # Force position refresh on resume
+                self.last_bounds = None
             return
 
         score = score_data.get('score', -1)
@@ -333,36 +335,40 @@ class OverlayController:
 
         # Get active window bounds
         win_data = fetch_json('/active-window')
-        if not win_data or (win_data['w'] == 0 and win_data['h'] == 0):
-            if self._tick % 20 == 1:
-                print(f"  [debug] No window bounds for: {win_data.get('app', '?')} — w={win_data.get('w')},h={win_data.get('h')}")
+        if not win_data:
             if self.visible:
                 self.window.orderOut_(None)
                 self.visible = False
+                print(f"  [hide] no window data from server")
             return
 
         app_name = win_data.get('app', '')
+
+        # Log every app switch
+        if app_name != self._last_app:
+            print(f"  [switch] {self._last_app} -> {app_name}  bounds=({win_data['x']},{win_data['y']},{win_data['w']},{win_data['h']})")
+            self._last_app = app_name
+
+        if win_data['w'] == 0 and win_data['h'] == 0:
+            if self.visible:
+                self.window.orderOut_(None)
+                self.visible = False
+                print(f"  [hide] {app_name} returned 0x0 bounds")
+            return
 
         # Fetch overlay settings periodically (every 10 polls = ~5 seconds)
         if self._tick % 10 == 0:
             settings = fetch_json('/overlay-settings')
             if settings:
                 overlay_cfg.update(settings)
-                # Sync subliminal settings
                 subliminal['enabled'] = settings.get('subliminal', False)
                 subliminal['interval'] = max(5, settings.get('subliminal_interval', 20))
-                # Reload messages if just enabled
                 if subliminal['enabled'] and not subliminal['messages']:
                     self.load_subliminal_messages()
 
         gw = overlay_cfg.get('glow_width', GLOW_WIDTH)
 
-        # Debug: log periodically
-        if self._tick % 40 == 1:
-            print(f"  [overlay] app={app_name} score={score} pos=({win_data['x']},{win_data['y']}) size={win_data['w']}x{win_data['h']} glow={gw} border={overlay_cfg.get('border_width',4)} bright={overlay_cfg.get('brightness',100)}%{'  PAUSED' if paused else ''}")
-
         # Convert coordinates: osascript uses top-left origin, AppKit uses bottom-left
-        # Must use PRIMARY screen height (screens()[0]), not mainScreen() which follows focus
         screens = NSScreen.screens()
         primary_h = screens[0].frame().size.height if screens else 1080
 
@@ -371,16 +377,17 @@ class OverlayController:
         w = win_data['w'] + gw * 2
         h = win_data['h'] + gw * 2
 
-        # Sanity check: window should have reasonable dimensions
+        # Sanity check
         if w < 50 or h < 50:
             if self.visible:
                 self.window.orderOut_(None)
                 self.visible = False
+                print(f"  [hide] {app_name} too small: {w}x{h}")
             return
 
         bounds = (x, y, w, h)
 
-        # Update position only if changed (reduce flicker)
+        # Update position only if changed
         if bounds != self.last_bounds:
             self.window.setFrame_display_(((x, y), (w, h)), True)
             self.glow_view.setFrame_(((0, 0), (w, h)))
@@ -394,6 +401,7 @@ class OverlayController:
         if not self.visible:
             self.window.orderFront_(None)
             self.visible = True
+            print(f"  [show] {app_name} at appkit=({x},{y}) {w}x{h}  primary_h={primary_h}")
 
         # Subliminal flash check
         self.trigger_subliminal_flash()

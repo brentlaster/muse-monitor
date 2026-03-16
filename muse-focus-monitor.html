@@ -2799,16 +2799,30 @@ function loadAudioSettings(){
     // Push restored overlay settings to server
     updateOverlaySettings();
 
-    // Restore ambient on/off — activate if it was on
+    // Restore ambient on/off — must defer until first user click (Chrome autoplay policy)
     if(data.ambientOn){
       var ambCb=document.getElementById('sAmb');
-      if(ambCb&&!ambCb.checked){
-        ambCb.checked=true;
-        toggleAmbient();
+      if(ambCb)ambCb.checked=true;
+      // Defer actual audio start until user interacts with the page
+      function _startAmbientOnGesture(){
+        document.removeEventListener('click',_startAmbientOnGesture);
+        document.removeEventListener('keydown',_startAmbientOnGesture);
+        // Small delay so the gesture registers with Chrome's autoplay policy
+        setTimeout(function(){
+          if(document.getElementById('sAmb').checked&&!amb.active){
+            toggleAmbient();
+            dbg('Ambient audio auto-started after user gesture','ok');
+          }
+        },100);
       }
+      document.addEventListener('click',_startAmbientOnGesture,{once:true});
+      document.addEventListener('keydown',_startAmbientOnGesture,{once:true});
+      document.getElementById('ambStatus').textContent='Click anywhere to start';
+      document.getElementById('ambStatus').style.color='var(--yl)';
+      dbg('Ambient was ON — will auto-start on first click/key','info');
     }
 
-    dbg('Audio settings restored: style='+data.style+', vol='+data.volume+(data.ambientOn?' [ambient ON]':'')+(data.customUrl?' url='+data.customUrl:''),'info');
+    dbg('Audio settings restored: style='+data.style+', vol='+data.volume+(data.ambientOn?' [ambient PENDING]':'')+(data.customUrl?' url='+data.customUrl:''),'info');
   }catch(e){}
 }
 
