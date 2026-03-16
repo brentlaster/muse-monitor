@@ -43,13 +43,11 @@ try:
         NSWindowCollectionBehaviorStationary,
         NSScreen, NSTimer, NSRunLoop, NSDefaultRunLoopMode, NSApp,
         NSApplicationActivationPolicyAccessory,
-        NSFont, NSMutableParagraphStyle, NSCenterTextAlignment,
-        NSFontAttributeName, NSForegroundColorAttributeName,
-        NSParagraphStyleAttributeName
+        NSFont, NSFontAttributeName, NSForegroundColorAttributeName
     )
-    from Foundation import NSAttributedString, NSMakeRect, NSDictionary
+    from Foundation import NSAttributedString, NSDictionary
     from Quartz import (
-        kCGWindowListOptionOnScreenOnly, kCGWindowListExcludeDesktopElements,
+        kCGWindowListOptionOnScreenOnly,
         kCGNullWindowID
     )
 except ImportError:
@@ -136,6 +134,7 @@ class GlowView(NSView):
     _pulse_phase = 0.0
 
     def drawRect_(self, rect):
+      try:
         bounds = self.bounds()
         w = bounds.size.width
         h = bounds.size.height
@@ -143,7 +142,7 @@ class GlowView(NSView):
         # Read live settings
         gw = overlay_cfg.get('glow_width', GLOW_WIDTH)
         bw = overlay_cfg.get('border_width', BORDER_WIDTH)
-        bright = max(0, min(200, overlay_cfg.get('brightness', 100))) / 100.0  # 0-2x multiplier
+        bright = max(0, min(200, overlay_cfg.get('brightness', 100))) / 100.0
 
         if self.score < 0 and not self.paused:
             r, g, b = 0.28, 0.33, 0.41
@@ -158,7 +157,6 @@ class GlowView(NSView):
             r, g, b = hsl_to_rgb(hue, sat, lit)
             alpha = 0.35 + (self.score / 100.0) * 0.35
 
-        # Apply brightness multiplier
         alpha = min(1.0, alpha * bright)
 
         color = NSColor.colorWithCalibratedRed_green_blue_alpha_(r, g, b, alpha)
@@ -191,27 +189,27 @@ class GlowView(NSView):
         border_path.fill()
 
         # Subliminal message flash
-        if subliminal['flash_active'] and subliminal['current_msg']:
-            msg = subliminal['current_msg']
-            flash_alpha = subliminal['flash_alpha']
-            # Render text centered in the overlay at very low opacity
-            font_size = min(w, h) * 0.035  # Scale with window
-            font_size = max(12, min(font_size, 28))
-            font = NSFont.systemFontOfSize_weight_(font_size, 0.3)  # Light weight
-            para = NSMutableParagraphStyle.alloc().init()
-            para.setAlignment_(NSCenterTextAlignment)
-            text_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, flash_alpha)
-            attrs = {
-                NSFontAttributeName: font,
-                NSForegroundColorAttributeName: text_color,
-                NSParagraphStyleAttributeName: para,
-            }
-            ns_str = NSAttributedString.alloc().initWithString_attributes_(msg, attrs)
-            text_size = ns_str.size()
-            # Position: center of the overlay window, within the border
-            tx = (w - text_size.width) / 2
-            ty = (h - text_size.height) / 2
-            ns_str.drawAtPoint_((tx, ty))
+        if subliminal.get('flash_active') and subliminal.get('current_msg'):
+            try:
+                msg = subliminal['current_msg']
+                fa = subliminal.get('flash_alpha', 0.12)
+                font_size = max(12, min(min(w, h) * 0.035, 28))
+                font = NSFont.systemFontOfSize_(font_size)
+                text_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, fa)
+                attrs = NSDictionary.dictionaryWithObjectsAndKeys_(
+                    font, NSFontAttributeName,
+                    text_color, NSForegroundColorAttributeName,
+                    None
+                )
+                ns_str = NSAttributedString.alloc().initWithString_attributes_(msg, attrs)
+                sz = ns_str.size()
+                ns_str.drawAtPoint_(((w - sz.width) / 2, (h - sz.height) / 2))
+            except Exception:
+                pass  # Don't let subliminal crash the overlay
+
+      except Exception as e:
+        # Never let drawRect_ crash — it kills the entire overlay
+        pass
 
 
 class OverlayController:
@@ -268,33 +266,48 @@ class OverlayController:
             print("  ⚠  No subliminal messages loaded")
 
     def trigger_subliminal_flash(self):
-        """Start a subliminal flash — brief text at threshold-of-perception opacity."""
-        if not subliminal['enabled'] or not subliminal['messages'] or not self.visible:
-            return
-        now = time.time()
-        interval = subliminal.get('interval', 20)
-        if now - subliminal['last_flash'] < interval:
-            return
-        # Pick a random message
-        subliminal['current_msg'] = random.choice(subliminal['messages'])
-        subliminal['flash_alpha'] = 0.12  # Just at threshold of perception
-        subliminal['flash_active'] = True
-        subliminal['last_flash'] = now
-        self.glow_view.setNeedsDisplay_(True)
-        # Schedule flash end
-        NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
-            subliminal.get('flash_duration', 0.1), self, 'endFlash:', None, False
-        )
+        """Start a subliminal flash."""
+        try:
+            if not subliminal.get('enabled') or not subliminal.get('messages') or not self.visible:
+                return
+            now = time.time()
+            interval = subliminal.get('interval', 20)
+            if now - subliminal.get('last_flash', 0) < interval:
+                return
+            subliminal['current_msg'] = random.choice(subliminal['messages'])
+            subliminal['flash_alpha'] = 0.12
+            subliminal['flash_active'] = True
+            subliminal['last_flash'] = now
+            self.glow_view.setNeedsDisplay_(True)
+            # Schedule flash end using a simple delayed call
+            dur = subliminal.get('flash_duration', 0.1)
+            NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                dur, self, 'endFlash:', None, False
+            )
+        except Exception:
+            subliminal['flash_active'] = False
 
     def endFlash_(self, timer):
         """End the subliminal flash."""
-        subliminal['flash_active'] = False
-        subliminal['flash_alpha'] = 0.0
-        subliminal['current_msg'] = ''
-        self.glow_view.setNeedsDisplay_(True)
+        try:
+            subliminal['flash_active'] = False
+            subliminal['flash_alpha'] = 0.0
+            subliminal['current_msg'] = ''
+            self.glow_view.setNeedsDisplay_(True)
+        except Exception:
+            subliminal['flash_active'] = False
 
     def update(self):
         """Poll server and update overlay."""
+        try:
+            self._update_inner()
+        except Exception as e:
+            if not hasattr(self, '_err_count'): self._err_count = 0
+            self._err_count += 1
+            if self._err_count <= 3 or self._err_count % 100 == 0:
+                print(f"  [error] update failed: {e}")
+
+    def _update_inner(self):
         if not hasattr(self, '_tick'): self._tick = 0
         self._tick += 1
 
