@@ -433,6 +433,7 @@ function applyPreset(){
   }
   // Reset smoothed score so it adapts quickly
   if(typeof S!=='undefined')S.engSmooth=0;
+  if(typeof S!=='undefined'&&S._scoreLogs)S._scoreLogs=0; // Log first scores after switch
   if(typeof dbg==='function')dbg('Preset: '+sel+' — '+p.desc+' — scoring formula adapted','ok');
   if(typeof saveAudioSettings==='function')saveAudioSettings();
 }
@@ -971,15 +972,26 @@ function proc(){
     p5=S.cal.manualBaseline;
     p95=S.cal.manualBaseline+S.cal.manualRange;
     range=S.cal.manualRange;
-  }else if(S.cal.history.length>=30){
+  }else if(S.cal.history.length>=15){
+    // Auto-calibration: percentile mapping (kicks in after 15 samples ~15sec)
     var sorted=S.cal.history.slice().sort(function(a,b){return a-b});
     p5=sorted[Math.floor(sorted.length*0.1)];
     p95=sorted[Math.floor(sorted.length*0.9)];
     range=p95-p5;
-    if(range<0.5)range=0.5;
+    if(range<0.3)range=0.3;
   }else{
-    // Before calibration: conservative fixed mapping for composite metric
-    p5=0.3;p95=3.5;range=3.2;
+    // Before calibration: use preset-specific fallback ranges
+    var preset=(document.getElementById('presetSel')||{}).value||'deepfocus';
+    var fallbacks={
+      deepfocus:{lo:0.3,hi:3.5},   // High beta engagement metric
+      creative:{lo:0.5,hi:3.0},     // Theta+alpha dominance
+      relaxed:{lo:0.6,hi:3.5},      // Alpha dominance + relaxation ratio
+      meditate:{lo:0.4,hi:3.0},     // Theta dominance
+      learning:{lo:0.4,hi:3.5},     // Balanced theta+beta
+      custom:{lo:0.2,hi:3.5}        // Generic for cosine similarity
+    };
+    var fb=fallbacks[preset]||fallbacks.deepfocus;
+    p5=fb.lo;p95=fb.hi;range=p95-p5;
   }
 
   var rawScore=((eng-p5)/range)*100;
@@ -995,10 +1007,11 @@ function proc(){
   // Periodic diagnostics
   if(!S._scoreLogs)S._scoreLogs=0;S._scoreLogs++;
   if(S._scoreLogs<=5||S._scoreLogs%60===0){
-    dbg('Focus: eng='+eng.toFixed(2)+' raw='+rawScore+' smooth='+S.score+
+    var activePreset=(document.getElementById('presetSel')||{}).value||'deepfocus';
+    dbg('Focus ['+activePreset+']: eng='+eng.toFixed(2)+' raw='+rawScore+' smooth='+S.score+
       ' [p10='+p5.toFixed(2)+' p90='+p95.toFixed(2)+' range='+range.toFixed(2)+
       (S.cal.manualBaseline!==null?' MANUAL':'') +
-      (S.cal.history.length<30?' warmup '+S.cal.history.length+'/30':'')+']','info');
+      (S.cal.history.length<15?' warmup '+S.cal.history.length+'/15':'')+']','info');
   }
 
   S.fN++;S.fS+=S.score;S.peak=Math.max(S.peak,S.score);
@@ -2285,9 +2298,19 @@ function updateUI(){
     co='var(--t3)';gw='#47556910';bt='NO SIGNAL';bg='#47556930';bc2='var(--t3)';sc=0;
   } else if(S.paused){
     co='var(--yl)';gw='#f59e0b10';bt='PAUSED';bg='#f59e0b25';bc2='#f59e0b';
-  } else if(sc>=70){co='var(--gn)';gw='#10b98115';bt='DEEP FOCUS';bg='#10b98125';bc2='#10b981'}
-  else if(sc>=40){co='var(--yl)';gw='#f59e0b10';bt='MODERATE';bg='#f59e0b25';bc2='#f59e0b'}
-  else{co='var(--rd)';gw='#ef444410';bt='DISTRACTED';bg='#ef444425';bc2='#ef4444'}
+  } else if(sc>=70){
+    var preset=(document.getElementById('presetSel')||{}).value||'deepfocus';
+    var topLabels={deepfocus:'DEEP FOCUS',creative:'CREATIVE FLOW',relaxed:'DEEPLY RELAXED',meditate:'DEEP MEDITATION',learning:'DEEP LEARNING',custom:'ON TARGET'};
+    var midLabels={deepfocus:'MODERATE',creative:'MODERATE',relaxed:'SOMEWHAT RELAXED',meditate:'LIGHT MEDITATION',learning:'MODERATE',custom:'MODERATE'};
+    co='var(--gn)';gw='#10b98115';bt=topLabels[preset]||'DEEP FOCUS';bg='#10b98125';bc2='#10b981'}
+  else if(sc>=40){
+    var preset2=(document.getElementById('presetSel')||{}).value||'deepfocus';
+    var midLabels2={deepfocus:'MODERATE',creative:'DRIFTING',relaxed:'SOMEWHAT RELAXED',meditate:'SETTLING',learning:'MODERATE',custom:'MODERATE'};
+    co='var(--yl)';gw='#f59e0b10';bt=midLabels2[preset2]||'MODERATE';bg='#f59e0b25';bc2='#f59e0b'}
+  else{
+    var preset3=(document.getElementById('presetSel')||{}).value||'deepfocus';
+    var lowLabels={deepfocus:'DISTRACTED',creative:'UNFOCUSED',relaxed:'TENSE',meditate:'RESTLESS',learning:'DISTRACTED',custom:'OFF TARGET'};
+    co='var(--rd)';gw='#ef444410';bt=lowLabels[preset3]||'DISTRACTED';bg='#ef444425';bc2='#ef4444'}
 
   var gf=document.getElementById('gF');
   gf.style.strokeDashoffset=noSig?310:(310-(sc/100)*310);
@@ -2425,7 +2448,9 @@ function drawHist(){
 
   // Zone labels
   cx.font='9px "DM Mono",monospace';
-  cx.fillStyle='#10b98160';cx.fillText('DEEP FOCUS 70%',6,y70-4);
+  var chartPreset=(document.getElementById('presetSel')||{}).value||'deepfocus';
+  var chartTopLabel={deepfocus:'DEEP FOCUS',creative:'CREATIVE FLOW',relaxed:'DEEPLY RELAXED',meditate:'DEEP MEDITATION',learning:'DEEP LEARNING',custom:'ON TARGET'};
+  cx.fillStyle='#10b98160';cx.fillText((chartTopLabel[chartPreset]||'DEEP FOCUS')+' 70%',6,y70-4);
   cx.fillStyle='#f59e0b60';cx.fillText('MODERATE 40%',6,y40-4);
   cx.fillStyle='#ef444450';cx.fillText('DISTRACTED',6,h-p-2);
 
