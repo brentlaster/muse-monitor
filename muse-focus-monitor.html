@@ -353,14 +353,15 @@ select.si2{width:auto;padding-right:6px;cursor:pointer;-webkit-appearance:auto}
       <div class="sg2" id="customAudioRow" style="display:none;flex-direction:column;gap:6px;width:100%">
         <div id="audioDrop" style="border:2px dashed var(--bdr);border-radius:6px;padding:12px;text-align:center;font-size:10px;color:var(--t3);cursor:pointer;transition:all .2s" onclick="document.getElementById('audioFileInput').click()" ondragover="event.preventDefault();this.style.borderColor='var(--cy)';this.style.color='var(--cy)'" ondragleave="this.style.borderColor='var(--bdr)';this.style.color='var(--t3)'" ondrop="event.preventDefault();this.style.borderColor='var(--bdr)';this.style.color='var(--t3)';handleAudioDrop(event)">
           &#127925; Drop audio file here or click to browse<br>
-          <span style="font-size:9px;color:var(--t3)">MP3, WAV, OGG, M4A</span>
+          <span style="font-size:9px;color:var(--t3)">MP3, WAV, OGG, M4A &middot; auto-saved to server for next time</span>
         </div>
         <input type="file" id="audioFileInput" accept="audio/*" style="display:none" onchange="handleAudioFile(this.files[0])">
         <div style="display:flex;gap:4px;align-items:center">
           <span class="sl2" style="font-size:9px">or URL</span>
-          <input type="text" class="si2" id="customAudioUrl" placeholder="https://example.com/music.mp3" style="flex:1;font-size:9px">
+          <input type="text" class="si2" id="customAudioUrl" placeholder="http://localhost:8000/myfile.mp3" style="flex:1;font-size:9px">
           <button class="b bg" onclick="loadCustomAudioFromUrl()" style="font-size:9px;padding:3px 6px">Load</button>
         </div>
+        <div style="font-size:8px;color:var(--t3);line-height:1.3">Dropped files are saved to the audio/ folder automatically and persist across restarts</div>
         <div id="audioFileName" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--cy2);display:none"></div>
       </div>
       <div class="sg2"><span class="sl2">Volume</span><input type="range" id="ambVol" min="0" max="100" value="50" style="width:80px;accent-color:var(--cy)" oninput="updateAmbientVol()"></div>
@@ -1691,15 +1692,47 @@ function handleAudioDrop(e){
 function handleAudioFile(file){
   if(!file)return;
   if(!file.type.startsWith('audio/')){dbg('Not an audio file: '+file.type,'err');return}
-  // Revoke old blob URL
-  if(_customAudioBlobUrl)URL.revokeObjectURL(_customAudioBlobUrl);
-  _customAudioBlobUrl=URL.createObjectURL(file);
-  document.getElementById('audioFileName').textContent='♫ '+file.name+' ('+Math.round(file.size/1024)+'KB)';
-  document.getElementById('audioFileName').style.display='block';
-  document.getElementById('audioDrop').innerHTML='&#9989; '+file.name+'<br><span style="font-size:9px;color:var(--t3)">Drop another to replace</span>';
-  dbg('Audio file loaded: '+file.name+' ('+Math.round(file.size/1024)+'KB)','ok');
-  // Auto-start if ambient is on
-  if(amb.active)startCustomAudio(_customAudioBlobUrl);
+
+  var dropEl=document.getElementById('audioDrop');
+  var fnEl=document.getElementById('audioFileName');
+  dropEl.innerHTML='&#8987; Uploading '+file.name+'...';
+  fnEl.textContent='Uploading...';fnEl.style.display='block';
+
+  // Upload file to server so it persists across restarts
+  fetch('/upload-audio',{
+    method:'POST',
+    headers:{'X-Filename':file.name},
+    body:file
+  }).then(function(r){return r.json()}).then(function(data){
+    if(data.ok&&data.url){
+      // Use the server-hosted URL (persists across restarts)
+      document.getElementById('customAudioUrl').value='http://localhost:8000'+data.url;
+      fnEl.textContent='\u266b '+file.name+' ('+Math.round(file.size/1024)+'KB) — saved to server';
+      dropEl.innerHTML='&#9989; '+file.name+'<br><span style="font-size:9px;color:var(--t3)">Saved! Drop another to replace</span>';
+      dbg('Audio uploaded: '+data.url,'ok');
+      // Auto-start if ambient is on
+      if(amb.active)startCustomAudio('http://localhost:8000'+data.url);
+      saveAudioSettings();
+    }else{
+      // Fallback to blob URL if upload fails
+      dbg('Upload failed: '+(data.error||'unknown')+' — using local blob','warn');
+      if(_customAudioBlobUrl)URL.revokeObjectURL(_customAudioBlobUrl);
+      _customAudioBlobUrl=URL.createObjectURL(file);
+      fnEl.textContent='\u266b '+file.name+' (session only — server upload failed)';
+      dropEl.innerHTML='&#9888; '+file.name+'<br><span style="font-size:9px;color:var(--yl)">Session only — re-drop after reload</span>';
+      if(amb.active)startCustomAudio(_customAudioBlobUrl);
+      saveAudioSettings();
+    }
+  }).catch(function(e){
+    // Fallback to blob URL
+    dbg('Upload error: '+e+' — using local blob','warn');
+    if(_customAudioBlobUrl)URL.revokeObjectURL(_customAudioBlobUrl);
+    _customAudioBlobUrl=URL.createObjectURL(file);
+    fnEl.textContent='\u266b '+file.name+' (session only)';
+    dropEl.innerHTML='&#9888; '+file.name+'<br><span style="font-size:9px;color:var(--yl)">Session only — re-drop after reload</span>';
+    if(amb.active)startCustomAudio(_customAudioBlobUrl);
+    saveAudioSettings();
+  });
 }
 
 function loadCustomAudioFromUrl(){
@@ -1709,6 +1742,7 @@ function loadCustomAudioFromUrl(){
   document.getElementById('audioFileName').textContent='♫ '+url.split('/').pop();
   document.getElementById('audioFileName').style.display='block';
   if(amb.active)startCustomAudio(url);
+  saveAudioSettings();
 }
 
 function startCustomAudio(audioUrl){
@@ -2159,12 +2193,14 @@ function updateAmbientVol(){
   if(!amb.ctx||!amb.active)return;
   var vol=(parseInt(document.getElementById('ambVol').value)||50)/100;
   amb.master.gain.linearRampToValueAtTime(vol,amb.ctx.currentTime+.3);
+  saveAudioSettings();
 }
 function updateAmbientStyle(){
   // Always show/hide custom panel based on dropdown
   var style=document.getElementById('ambStyle').value;
   var cu=document.getElementById('customAudioRow');
   if(cu)cu.style.display=style==='custom'?'flex':'none';
+  saveAudioSettings();
   if(!amb.active)return;
   if(amb.timer){clearTimeout(amb.timer);amb.timer=null}
   stopContinuous();
@@ -2672,14 +2708,98 @@ detectIAF=function(psdList){
 // Load session history on page load
 document.addEventListener('DOMContentLoaded',function(){
   renderSessionHistory();
+  loadAudioSettings();
 });
 // Also run immediately in case DOM already loaded
-if(document.readyState!=='loading')renderSessionHistory();
+if(document.readyState!=='loading'){renderSessionHistory();loadAudioSettings()}
 
 // Save session when page is closed/refreshed
 window.addEventListener('beforeunload',function(){
   if(S.connected||S.demo)saveSession();
+  saveAudioSettings();
 });
+
+// ==================== AUDIO & OVERLAY SETTINGS PERSISTENCE ====================
+function saveAudioSettings(){
+  try{
+    var data={
+      style:document.getElementById('ambStyle').value,
+      volume:parseInt(document.getElementById('ambVol').value)||50,
+      customUrl:document.getElementById('customAudioUrl').value||'',
+      customFileName:(document.getElementById('audioFileName')||{}).textContent||'',
+      // Overlay settings
+      ovBright:parseInt(document.getElementById('ovBright').value)||100,
+      ovBorder:parseInt(document.getElementById('ovBorder').value)||4,
+      ovGlow:parseInt(document.getElementById('ovGlow').value)||12,
+      ovSubliminal:document.getElementById('ovSubliminal').checked,
+      ovSubInterval:parseInt(document.getElementById('ovSubInterval').value)||20
+    };
+    localStorage.setItem('nf_audio_settings',JSON.stringify(data));
+  }catch(e){}
+}
+
+function loadAudioSettings(){
+  try{
+    var raw=localStorage.getItem('nf_audio_settings');
+    if(!raw)return;
+    var data=JSON.parse(raw);
+
+    // Restore audio style
+    if(data.style){
+      var sel=document.getElementById('ambStyle');
+      if(sel){sel.value=data.style;
+        // Show custom panel if style is custom
+        var cu=document.getElementById('customAudioRow');
+        if(cu)cu.style.display=data.style==='custom'?'flex':'none';
+      }
+    }
+
+    // Restore volume
+    if(data.volume!=null){
+      var vol=document.getElementById('ambVol');
+      if(vol)vol.value=data.volume;
+    }
+
+    // Restore custom audio URL
+    if(data.customUrl){
+      var urlInput=document.getElementById('customAudioUrl');
+      if(urlInput)urlInput.value=data.customUrl;
+    }
+
+    // Restore custom file name display
+    if(data.customFileName&&data.customUrl){
+      var fn=document.getElementById('audioFileName');
+      if(fn){fn.textContent=data.customFileName;fn.style.display='block'}
+    }
+
+    // Restore overlay settings
+    if(data.ovBright!=null){
+      var b=document.getElementById('ovBright');
+      if(b){b.value=data.ovBright;document.getElementById('ovBrightVal').textContent=data.ovBright+'%'}
+    }
+    if(data.ovBorder!=null){
+      var bd=document.getElementById('ovBorder');
+      if(bd){bd.value=data.ovBorder;document.getElementById('ovBorderVal').textContent=data.ovBorder+'px'}
+    }
+    if(data.ovGlow!=null){
+      var g=document.getElementById('ovGlow');
+      if(g){g.value=data.ovGlow;document.getElementById('ovGlowVal').textContent=data.ovGlow+'px'}
+    }
+    if(data.ovSubliminal!=null){
+      var s=document.getElementById('ovSubliminal');
+      if(s)s.checked=data.ovSubliminal;
+    }
+    if(data.ovSubInterval!=null){
+      var si=document.getElementById('ovSubInterval');
+      if(si)si.value=data.ovSubInterval;
+    }
+
+    // Push restored overlay settings to server
+    updateOverlaySettings();
+
+    dbg('Audio settings restored: style='+data.style+', vol='+data.volume+(data.customUrl?' url='+data.customUrl:''),'info');
+  }catch(e){}
+}
 
 // ==================== OVERLAY SCORE BRIDGE ====================
 // Posts focus score to server for the desktop overlay to read
@@ -2707,6 +2827,7 @@ function updateOverlaySettings(){
     fetch('/overlay-settings',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({brightness:bright,border_width:border,glow_width:glow,subliminal:sub,subliminal_interval:subInt})}).catch(function(){});
   }catch(e){}
+  saveAudioSettings();
 }
 
 // ==================== MAIN LOOP ====================

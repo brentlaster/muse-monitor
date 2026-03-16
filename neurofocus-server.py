@@ -168,14 +168,45 @@ class NeuroFocusHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json({'ok': True})
             except Exception as e:
                 self.send_json({'error': str(e)}, 400)
+        elif self.path.startswith('/upload-audio'):
+            self.handle_audio_upload()
         else:
             self.send_error(404)
+
+    def handle_audio_upload(self):
+        """Save uploaded audio file to the audio/ subdirectory."""
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length > 50 * 1024 * 1024:  # 50MB limit
+                self.send_json({'error': 'File too large (50MB max)'}, 400)
+                return
+            body = self.rfile.read(content_length)
+
+            # Get filename from header or query param
+            filename = self.headers.get('X-Filename', 'custom-audio.mp3')
+            # Sanitize filename
+            filename = os.path.basename(filename).replace(' ', '_')
+            if not filename:
+                filename = 'custom-audio.mp3'
+
+            # Save to audio/ subdirectory
+            audio_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'audio')
+            os.makedirs(audio_dir, exist_ok=True)
+            filepath = os.path.join(audio_dir, filename)
+            with open(filepath, 'wb') as f:
+                f.write(body)
+
+            url = f'/audio/{filename}'
+            print(f"  [upload] Saved audio: {filename} ({len(body)//1024}KB)")
+            self.send_json({'ok': True, 'url': url, 'filename': filename})
+        except Exception as e:
+            self.send_json({'error': str(e)}, 400)
 
     def do_OPTIONS(self):
         self.send_response(204)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-Filename')
         self.end_headers()
 
     def send_json(self, data, code=200):
@@ -192,7 +223,7 @@ class NeuroFocusHandler(http.server.SimpleHTTPRequestHandler):
 
     def log_message(self, format, *args):
         msg = str(args)
-        if '/active-app' not in msg and '/focus-score' not in msg and '/active-window' not in msg and '/overlay-settings' not in msg and '/subliminal' not in msg:
+        if '/active-app' not in msg and '/focus-score' not in msg and '/active-window' not in msg and '/overlay-settings' not in msg and '/subliminal' not in msg and '/upload-audio' not in msg:
             super().log_message(format, *args)
 
 
