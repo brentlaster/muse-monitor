@@ -32,7 +32,7 @@ class ReusableHTTPServer(http.server.HTTPServer):
 
 # Shared state
 current_score = {'score': -1, 'state': 'unknown', 'paused': False, 'timestamp': 0}
-overlay_settings = {'brightness': 100, 'border_width': 4, 'glow_width': 12}
+overlay_settings = {'brightness': 100, 'border_width': 4, 'glow_width': 12, 'subliminal': False, 'subliminal_interval': 20}
 _score_lock = threading.Lock()
 _settings_lock = threading.Lock()
 
@@ -129,8 +129,23 @@ class NeuroFocusHandler(http.server.SimpleHTTPRequestHandler):
         elif self.path == '/overlay-settings':
             with _settings_lock:
                 self.send_json(overlay_settings)
+        elif self.path == '/subliminal-messages':
+            self.send_subliminal_messages()
         else:
             super().do_GET()
+
+    def send_subliminal_messages(self):
+        """Read messages from subliminal-messages.txt."""
+        try:
+            msg_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'subliminal-messages.txt')
+            if os.path.exists(msg_file):
+                with open(msg_file, 'r') as f:
+                    lines = [l.strip() for l in f.readlines() if l.strip() and not l.strip().startswith('#')]
+                self.send_json({'messages': lines})
+            else:
+                self.send_json({'messages': [], 'error': 'subliminal-messages.txt not found'})
+        except Exception as e:
+            self.send_json({'messages': [], 'error': str(e)})
 
     def do_POST(self):
         if self.path == '/focus-score':
@@ -164,17 +179,20 @@ class NeuroFocusHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def send_json(self, data, code=200):
-        response = json.dumps(data)
-        self.send_response(code)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Cache-Control', 'no-cache')
-        self.end_headers()
-        self.wfile.write(response.encode())
+        try:
+            response = json.dumps(data)
+            self.send_response(code)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'no-cache')
+            self.end_headers()
+            self.wfile.write(response.encode())
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # Client disconnected — harmless
 
     def log_message(self, format, *args):
         msg = str(args)
-        if '/active-app' not in msg and '/focus-score' not in msg and '/active-window' not in msg and '/overlay-settings' not in msg:
+        if '/active-app' not in msg and '/focus-score' not in msg and '/active-window' not in msg and '/overlay-settings' not in msg and '/subliminal' not in msg:
             super().log_message(format, *args)
 
 

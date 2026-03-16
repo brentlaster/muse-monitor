@@ -311,6 +311,21 @@ select.si2{width:auto;padding-right:6px;cursor:pointer;-webkit-appearance:auto}
           <span class="sl2" id="ovGlowVal" style="width:24px;text-align:right">12px</span>
         </div>
       </div>
+      <div class="sf" style="gap:10px;margin-top:8px">
+        <div class="sg2">
+          <span class="sl2">Subliminal</span>
+          <label class="tg"><input type="checkbox" id="ovSubliminal" onchange="updateOverlaySettings()"><div class="tt"></div><div class="th"></div></label>
+        </div>
+        <div class="sg2">
+          <span class="sl2">Every</span>
+          <input type="number" class="si2" id="ovSubInterval" value="20" min="5" max="120" style="width:40px" onchange="updateOverlaySettings()">
+          <span class="sl2">sec</span>
+        </div>
+      </div>
+      <div style="font-size:9px;color:var(--t3);margin-top:4px;line-height:1.4">
+        Subliminal: flashes brief affirmations within the overlay border at threshold-of-perception opacity.<br>
+        Edit <span style="color:var(--cy2)">subliminal-messages.txt</span> to customize messages (one per line).
+      </div>
     </div>
   </div>
 
@@ -2683,12 +2698,14 @@ function updateOverlaySettings(){
   var bright=parseInt(document.getElementById('ovBright').value)||100;
   var border=parseInt(document.getElementById('ovBorder').value)||4;
   var glow=parseInt(document.getElementById('ovGlow').value)||12;
+  var sub=document.getElementById('ovSubliminal').checked;
+  var subInt=parseInt(document.getElementById('ovSubInterval').value)||20;
   document.getElementById('ovBrightVal').textContent=bright+'%';
   document.getElementById('ovBorderVal').textContent=border+'px';
   document.getElementById('ovGlowVal').textContent=glow+'px';
   try{
     fetch('/overlay-settings',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({brightness:bright,border_width:border,glow_width:glow})}).catch(function(){});
+      body:JSON.stringify({brightness:bright,border_width:border,glow_width:glow,subliminal:sub,subliminal_interval:subInt})}).catch(function(){});
   }catch(e){}
 }
 

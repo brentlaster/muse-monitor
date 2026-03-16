@@ -31,6 +31,8 @@ import urllib.request
 import math
 import time
 import signal
+import random
+import os
 
 try:
     import objc
@@ -40,8 +42,12 @@ try:
         NSWindowCollectionBehaviorCanJoinAllSpaces,
         NSWindowCollectionBehaviorStationary,
         NSScreen, NSTimer, NSRunLoop, NSDefaultRunLoopMode, NSApp,
-        NSApplicationActivationPolicyAccessory
+        NSApplicationActivationPolicyAccessory,
+        NSFont, NSMutableParagraphStyle, NSCenterTextAlignment,
+        NSFontAttributeName, NSForegroundColorAttributeName,
+        NSParagraphStyleAttributeName
     )
+    from Foundation import NSAttributedString, NSMakeRect, NSDictionary
     from Quartz import (
         kCGWindowListOptionOnScreenOnly, kCGWindowListExcludeDesktopElements,
         kCGNullWindowID
@@ -71,6 +77,18 @@ BRIGHTNESS = 1.0  # 0.0 to 2.0 multiplier
 
 # Live settings (updated from server)
 overlay_cfg = {'border_width': BORDER_WIDTH, 'glow_width': GLOW_WIDTH, 'brightness': 100}
+
+# Subliminal message system
+subliminal = {
+    'enabled': False,
+    'messages': [],
+    'current_msg': '',
+    'flash_active': False,
+    'flash_alpha': 0.0,
+    'interval': 20,      # Seconds between flashes
+    'flash_duration': 0.1,  # Seconds the text is visible (100ms)
+    'last_flash': 0,
+}
 
 
 def score_to_hsl(score):
@@ -172,6 +190,29 @@ class GlowView(NSView):
         color.setFill()
         border_path.fill()
 
+        # Subliminal message flash
+        if subliminal['flash_active'] and subliminal['current_msg']:
+            msg = subliminal['current_msg']
+            flash_alpha = subliminal['flash_alpha']
+            # Render text centered in the overlay at very low opacity
+            font_size = min(w, h) * 0.035  # Scale with window
+            font_size = max(12, min(font_size, 28))
+            font = NSFont.systemFontOfSize_weight_(font_size, 0.3)  # Light weight
+            para = NSMutableParagraphStyle.alloc().init()
+            para.setAlignment_(NSCenterTextAlignment)
+            text_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, flash_alpha)
+            attrs = {
+                NSFontAttributeName: font,
+                NSForegroundColorAttributeName: text_color,
+                NSParagraphStyleAttributeName: para,
+            }
+            ns_str = NSAttributedString.alloc().initWithString_attributes_(msg, attrs)
+            text_size = ns_str.size()
+            # Position: center of the overlay window, within the border
+            tx = (w - text_size.width) / 2
+            ty = (h - text_size.height) / 2
+            ns_str.drawAtPoint_((tx, ty))
+
 
 class OverlayController:
     """Manages the overlay window and polling."""
@@ -203,6 +244,54 @@ class OverlayController:
 
         self.last_bounds = None
         self.visible = False
+
+        # Load subliminal messages
+        self.load_subliminal_messages()
+
+    def load_subliminal_messages(self):
+        """Load messages from server."""
+        data = fetch_json('/subliminal-messages')
+        if data and data.get('messages'):
+            subliminal['messages'] = data['messages']
+            print(f"  ✓  Loaded {len(subliminal['messages'])} subliminal messages")
+        else:
+            # Try loading directly from file as fallback
+            try:
+                msg_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'subliminal-messages.txt')
+                if os.path.exists(msg_file):
+                    with open(msg_file, 'r') as f:
+                        subliminal['messages'] = [l.strip() for l in f.readlines() if l.strip() and not l.strip().startswith('#')]
+                    print(f"  ✓  Loaded {len(subliminal['messages'])} subliminal messages from file")
+            except Exception:
+                pass
+        if not subliminal['messages']:
+            print("  ⚠  No subliminal messages loaded")
+
+    def trigger_subliminal_flash(self):
+        """Start a subliminal flash — brief text at threshold-of-perception opacity."""
+        if not subliminal['enabled'] or not subliminal['messages'] or not self.visible:
+            return
+        now = time.time()
+        interval = subliminal.get('interval', 20)
+        if now - subliminal['last_flash'] < interval:
+            return
+        # Pick a random message
+        subliminal['current_msg'] = random.choice(subliminal['messages'])
+        subliminal['flash_alpha'] = 0.12  # Just at threshold of perception
+        subliminal['flash_active'] = True
+        subliminal['last_flash'] = now
+        self.glow_view.setNeedsDisplay_(True)
+        # Schedule flash end
+        NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+            subliminal.get('flash_duration', 0.1), self, 'endFlash:', None, False
+        )
+
+    def endFlash_(self, timer):
+        """End the subliminal flash."""
+        subliminal['flash_active'] = False
+        subliminal['flash_alpha'] = 0.0
+        subliminal['current_msg'] = ''
+        self.glow_view.setNeedsDisplay_(True)
 
     def update(self):
         """Poll server and update overlay."""
@@ -246,6 +335,12 @@ class OverlayController:
             settings = fetch_json('/overlay-settings')
             if settings:
                 overlay_cfg.update(settings)
+                # Sync subliminal settings
+                subliminal['enabled'] = settings.get('subliminal', False)
+                subliminal['interval'] = max(5, settings.get('subliminal_interval', 20))
+                # Reload messages if just enabled
+                if subliminal['enabled'] and not subliminal['messages']:
+                    self.load_subliminal_messages()
 
         gw = overlay_cfg.get('glow_width', GLOW_WIDTH)
 
@@ -286,6 +381,9 @@ class OverlayController:
         if not self.visible:
             self.window.orderFront_(None)
             self.visible = True
+
+        # Subliminal flash check
+        self.trigger_subliminal_flash()
 
     def poll_(self, timer):
         """Timer callback."""
