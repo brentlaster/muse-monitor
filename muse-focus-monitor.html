@@ -363,6 +363,11 @@ select.si2{width:auto;padding-right:6px;cursor:pointer;-webkit-appearance:auto}
         </div>
         <div style="font-size:8px;color:var(--t3);line-height:1.3">Dropped files are saved to the audio/ folder automatically and persist across restarts</div>
         <div id="audioFileName" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--cy2);display:none"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:2px">
+          <span class="sl2" style="font-size:9px">Add birds</span>
+          <label class="tg"><input type="checkbox" id="customBirds" onchange="toggleCustomBirds();saveAudioSettings()"><div class="tt"></div><div class="th"></div></label>
+          <span style="font-size:8px;color:var(--t3)">Layer focus-responsive bird chirps over the audio</span>
+        </div>
       </div>
       <div class="sg2"><span class="sl2">Volume</span><input type="range" id="ambVol" min="0" max="100" value="50" style="width:80px;accent-color:var(--cy)" oninput="updateAmbientVol()"></div>
       <div class="sg2" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--t3)" id="ambStatus">Off</div>
@@ -435,7 +440,7 @@ function applyPreset(){
   if(typeof S!=='undefined')S.engSmooth=0;
   if(typeof S!=='undefined'&&S._scoreLogs)S._scoreLogs=0; // Log first scores after switch
   if(typeof dbg==='function')dbg('Preset: '+sel+' — '+p.desc+' — scoring formula adapted','ok');
-  if(typeof saveAudioSettings==='function')saveAudioSettings();
+  if(typeof saveAudioSettings==='function'&&window._nfSettingsLoaded)saveAudioSettings();
 }
 applyPreset(); // Set default
 
@@ -1905,6 +1910,103 @@ function startCustomAudio(audioUrl){
 
   dbg('Custom audio loaded: '+url,'ok');
   dbg('Focus modulates: filter (muffled↔clear), reverb (spacey↔intimate), noise veil (hissy↔silent)','info');
+  // Auto-start birds if toggle is on
+  if(document.getElementById('customBirds')&&document.getElementById('customBirds').checked){
+    startBirdOverlay();
+  }
+}
+
+// ==================== BIRD OVERLAY (layers over any audio) ====================
+var _birdOverlay={active:false,timer:null};
+var _birdFreqs=[329.63,392.00,440,493.88,523.25,659.26,783.99,880,987.77,1046.50,1318.51,1479.98,1760,2093.00,2349.32,2637.02];
+
+function playBirdOverlayChirp(freq,vol){
+  if(!amb.ctx||!amb.active)return;
+  var ctx=amb.ctx,t=ctx.currentTime;
+  // Primary chirp
+  var o=ctx.createOscillator();o.type='sine';
+  o.frequency.setValueAtTime(freq,t);
+  o.frequency.exponentialRampToValueAtTime(freq*(1.1+Math.random()*0.15),t+.04+Math.random()*0.03);
+  o.frequency.exponentialRampToValueAtTime(freq*(0.95+Math.random()*0.08),t+.12);
+  var g=ctx.createGain();g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(vol*0.13,t+.015);
+  g.gain.exponentialRampToValueAtTime(vol*0.04,t+.1);
+  g.gain.exponentialRampToValueAtTime(.001,t+.4+Math.random()*0.2);
+  o.connect(g);g.connect(amb.master);
+  o.start(t);o.stop(t+.7);
+  // Response chirp
+  if(Math.random()>0.35){
+    var o2=ctx.createOscillator();o2.type='sine';
+    var delay=0.15+Math.random()*0.15;
+    var f2=freq*(1.02+Math.random()*0.08);
+    o2.frequency.setValueAtTime(f2,t+delay);
+    o2.frequency.exponentialRampToValueAtTime(f2*1.18,t+delay+.04);
+    o2.frequency.exponentialRampToValueAtTime(f2*0.97,t+delay+.1);
+    var g2=ctx.createGain();g2.gain.setValueAtTime(0,t+delay);
+    g2.gain.linearRampToValueAtTime(vol*0.08,t+delay+.012);
+    g2.gain.exponentialRampToValueAtTime(.001,t+delay+.35);
+    o2.connect(g2);g2.connect(amb.master);
+    o2.start(t+delay);o2.stop(t+delay+.5);
+  }
+  // Trill when very focused
+  if(Math.random()>0.7&&amb.score>=65){
+    var tc=2+Math.floor(Math.random()*3);
+    for(var ti=0;ti<tc;ti++){
+      (function(idx){
+        var td=0.5+idx*0.08;
+        var ot=ctx.createOscillator();ot.type='sine';
+        var ft=freq*(1.0+Math.random()*0.05);
+        ot.frequency.setValueAtTime(ft,t+td);
+        ot.frequency.exponentialRampToValueAtTime(ft*1.12,t+td+.025);
+        var gt=ctx.createGain();gt.gain.setValueAtTime(0,t+td);
+        gt.gain.linearRampToValueAtTime(vol*0.05,t+td+.008);
+        gt.gain.exponentialRampToValueAtTime(.001,t+td+.12);
+        ot.connect(gt);gt.connect(amb.master);
+        ot.start(t+td);ot.stop(t+td+.15);
+      })(ti);
+    }
+  }
+}
+
+function scheduleBirdOverlay(){
+  if(!_birdOverlay.active||!amb.active)return;
+  if(S.paused){_birdOverlay.timer=setTimeout(scheduleBirdOverlay,1000);return}
+  var sc=amb.score;
+  var vol=(parseInt(document.getElementById('ambVol').value)||50)/100;
+  var birdCount,interval;
+  if(sc>=70){birdCount=3+Math.floor(Math.random()*4);interval=800+Math.random()*1200}
+  else if(sc>=50){birdCount=1+Math.floor(Math.random()*2);interval=2000+Math.random()*2000}
+  else if(sc>=30){birdCount=Math.random()>0.5?1:0;interval=4000+Math.random()*3000}
+  else{birdCount=Math.random()>0.8?1:0;interval=6000+Math.random()*5000}
+  for(var bi=0;bi<birdCount;bi++){
+    var regStart=sc>=60?0:Math.floor(_birdFreqs.length*0.3);
+    var regEnd=sc>=70?_birdFreqs.length:Math.floor(_birdFreqs.length*0.7);
+    var idx=regStart+Math.floor(Math.random()*(regEnd-regStart));
+    var freq=_birdFreqs[Math.min(idx,_birdFreqs.length-1)];
+    var delay=bi*(0.2+Math.random()*0.6);
+    var bv=vol*(0.4+Math.random()*0.4)*(bi===0?1:0.6);
+    setTimeout(function(f,v){return function(){playBirdOverlayChirp(f,v)}}(freq,bv),delay*1000);
+  }
+  _birdOverlay.timer=setTimeout(scheduleBirdOverlay,interval);
+}
+
+function startBirdOverlay(){
+  stopBirdOverlay();
+  if(!amb.ctx)initAudio();
+  _birdOverlay.active=true;
+  scheduleBirdOverlay();
+  dbg('Bird overlay started — chirps scale with focus','ok');
+}
+
+function stopBirdOverlay(){
+  _birdOverlay.active=false;
+  if(_birdOverlay.timer){clearTimeout(_birdOverlay.timer);_birdOverlay.timer=null}
+}
+
+function toggleCustomBirds(){
+  var on=document.getElementById('customBirds').checked;
+  if(on&&amb.active){startBirdOverlay()}
+  else{stopBirdOverlay()}
 }
 
 function stopContinuous(){
@@ -1922,6 +2024,7 @@ function stopContinuous(){
     try{contSound.fileAudio.pause();contSound.fileAudio.src=''}catch(e){}
     contSound.fileAudio=null;
   }
+  stopBirdOverlay();
 }
 
 function isContinuousStyle(style){return style==='rain'||style==='ocean'||style==='rainbirds'||style==='custom'}
@@ -2813,6 +2916,7 @@ function saveAudioSettings(){
       volume:parseInt(document.getElementById('ambVol').value)||50,
       customUrl:document.getElementById('customAudioUrl').value||'',
       customFileName:(document.getElementById('audioFileName')||{}).textContent||'',
+      customBirds:document.getElementById('customBirds')?document.getElementById('customBirds').checked:false,
       preset:document.getElementById('presetSel').value||'deepfocus',
       // Overlay settings
       ovBright:parseInt(document.getElementById('ovBright').value)||100,
@@ -2864,6 +2968,12 @@ function loadAudioSettings(){
       if(fn){fn.textContent=data.customFileName;fn.style.display='block'}
     }
 
+    // Restore birds toggle
+    if(data.customBirds!=null){
+      var cb=document.getElementById('customBirds');
+      if(cb)cb.checked=data.customBirds;
+    }
+
     // Restore overlay settings
     if(data.ovBright!=null){
       var b=document.getElementById('ovBright');
@@ -2893,20 +3003,17 @@ function loadAudioSettings(){
     if(data.ambientOn){
       var ambCb=document.getElementById('sAmb');
       if(ambCb)ambCb.checked=true;
-      // Defer actual audio start until user interacts with the page
       function _startAmbientOnGesture(){
         document.removeEventListener('click',_startAmbientOnGesture);
         document.removeEventListener('keydown',_startAmbientOnGesture);
-        // Small delay so the gesture registers with Chrome's autoplay policy
-        setTimeout(function(){
-          if(document.getElementById('sAmb').checked&&!amb.active){
-            toggleAmbient();
-            dbg('Ambient audio auto-started after user gesture','ok');
-          }
-        },100);
+        // Must call synchronously within the gesture event for Chrome autoplay policy
+        if(document.getElementById('sAmb').checked&&!amb.active){
+          toggleAmbient();
+          dbg('Ambient audio auto-started after user gesture','ok');
+        }
       }
-      document.addEventListener('click',_startAmbientOnGesture,{once:true});
-      document.addEventListener('keydown',_startAmbientOnGesture,{once:true});
+      document.addEventListener('click',_startAmbientOnGesture);
+      document.addEventListener('keydown',_startAmbientOnGesture);
       document.getElementById('ambStatus').textContent='Click anywhere to start';
       document.getElementById('ambStatus').style.color='var(--yl)';
       dbg('Ambient was ON — will auto-start on first click/key','info');
@@ -2914,9 +3021,8 @@ function loadAudioSettings(){
 
     dbg('Audio settings restored: style='+data.style+', vol='+data.volume+(data.ambientOn?' [ambient PENDING]':'')+(data.customUrl?' url='+data.customUrl:''),'info');
   }catch(e){}
+  window._nfSettingsLoaded=true;
 }
-
-// ==================== OVERLAY SCORE BRIDGE ====================
 // Posts focus score to server for the desktop overlay to read
 var _lastScorePost=0;
 function postScore(){
