@@ -218,7 +218,11 @@ class NeuroFocusHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json(dict(_window_cache))
         elif self.path == '/overlay-settings':
             with _settings_lock:
-                self.send_json(overlay_settings)
+                data = dict(overlay_settings)
+                # Clear test flag after it's been read so it only fires once
+                if overlay_settings.get('subliminal_test'):
+                    overlay_settings['subliminal_test'] = False
+                self.send_json(data)
         elif self.path == '/subliminal-messages':
             self.send_subliminal_messages()
         elif self.path == '/favicon.ico':
