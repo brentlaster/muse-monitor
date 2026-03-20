@@ -12,21 +12,21 @@
 #   2. neurofocus-overlay.py  — macOS window glow overlay
 #   3. Chrome browser          — opens the monitor page
 #
- 
+
 set -e
- 
+
 PORT=8000
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 URL="http://localhost:${PORT}/muse-focus-monitor.html"
 LOG_DIR="${SCRIPT_DIR}/logs"
- 
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No color
- 
+
 header() {
     echo ""
     echo -e "${CYAN}╔══════════════════════════════════════════════════╗${NC}"
@@ -34,7 +34,7 @@ header() {
     echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
     echo ""
 }
- 
+
 stop_all() {
     echo -e "${YELLOW}Stopping existing NeuroFocus processes...${NC}"
     
@@ -55,7 +55,7 @@ stop_all() {
     ' 2>/dev/null && \
         echo -e "  ${GREEN}✓${NC} Closed NeuroFocus Chrome tab(s)" || \
         echo -e "  ${NC}  No Chrome tabs to close"
- 
+
     # Kill anything on port 8000
     local pids
     pids=$(lsof -ti:${PORT} 2>/dev/null || true)
@@ -70,6 +70,7 @@ stop_all() {
     pkill -f "neurofocus-overlay.py" 2>/dev/null && \
         echo -e "  ${GREEN}✓${NC} Killed overlay process" || \
         echo -e "  ${NC}  No overlay running"
+    pkill -f "caffeinate.*neurofocus-overlay" 2>/dev/null || true
     
     # Kill server processes (in case port kill missed it)
     pkill -f "neurofocus-server.py" 2>/dev/null || true
@@ -78,7 +79,7 @@ stop_all() {
     sleep 1
     echo -e "${GREEN}All NeuroFocus processes stopped.${NC}"
 }
- 
+
 check_deps() {
     # Check Python 3
     if ! command -v python3 &>/dev/null; then
@@ -98,7 +99,7 @@ check_deps() {
     
     echo "$has_overlay"
 }
- 
+
 start_all() {
     header
     
@@ -141,8 +142,11 @@ start_all() {
     # Start overlay (if pyobjc available)
     if [ "$has_overlay" = "true" ] && [ -f "${SCRIPT_DIR}/neurofocus-overlay.py" ]; then
         echo -e "${CYAN}Starting overlay...${NC}"
-        python3 -u neurofocus-overlay.py > "${LOG_DIR}/overlay.log" 2>&1 &
+        # Launch with caffeinate to maintain window server connection
+        # and disown to detach from shell job control
+        caffeinate -i python3 -u neurofocus-overlay.py > "${LOG_DIR}/overlay.log" 2>&1 &
         local overlay_pid=$!
+        disown $overlay_pid 2>/dev/null
         sleep 1
         if kill -0 $overlay_pid 2>/dev/null; then
             echo -e "  ${GREEN}✓${NC} Overlay running (PID ${overlay_pid})"
@@ -178,7 +182,7 @@ start_all() {
     # Tail logs so user sees output
     tail -f "${LOG_DIR}/server.log" "${LOG_DIR}/overlay.log" 2>/dev/null || wait
 }
- 
+
 # Parse arguments
 case "${1:-}" in
     --stop|-s)
@@ -200,3 +204,8 @@ case "${1:-}" in
         start_all
         ;;
 esac
+ 
+
+
+
+
