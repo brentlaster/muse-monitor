@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 NeuroFocus Overlay — draws a glowing colored border around the active macOS window
@@ -196,15 +195,28 @@ class GlowView(NSView):
                 fa = subliminal.get('flash_alpha', 0.12)
                 font_size = max(12, min(min(w, h) * 0.035, 28))
                 font = NSFont.systemFontOfSize_(font_size)
-                text_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, fa)
-                attrs = NSDictionary.dictionaryWithObjectsAndKeys_(
+                # Draw twice: dark shadow + light text (visible on any background)
+                dark_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.0, 0.0, fa)
+                light_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, fa)
+                dark_attrs = NSDictionary.dictionaryWithObjectsAndKeys_(
                     font, NSFontAttributeName,
-                    text_color, NSForegroundColorAttributeName,
+                    dark_color, NSForegroundColorAttributeName,
                     None
                 )
-                ns_str = NSAttributedString.alloc().initWithString_attributes_(msg, attrs)
-                sz = ns_str.size()
-                ns_str.drawAtPoint_(((w - sz.width) / 2, (h - sz.height) / 2))
+                light_attrs = NSDictionary.dictionaryWithObjectsAndKeys_(
+                    font, NSFontAttributeName,
+                    light_color, NSForegroundColorAttributeName,
+                    None
+                )
+                dark_str = NSAttributedString.alloc().initWithString_attributes_(msg, dark_attrs)
+                light_str = NSAttributedString.alloc().initWithString_attributes_(msg, light_attrs)
+                sz = dark_str.size()
+                cx = (w - sz.width) / 2
+                cy = (h - sz.height) / 2
+                # Dark shadow offset by 1px (readable on light backgrounds)
+                dark_str.drawAtPoint_((cx + 1, cy - 1))
+                # Light text on top (readable on dark backgrounds)
+                light_str.drawAtPoint_((cx, cy))
             except Exception:
                 pass  # Don't let subliminal crash the overlay
 
@@ -219,10 +231,12 @@ class OverlayController:
     def __init__(self):
         self.app = NSApplication.sharedApplication()
         self.app.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+        # Force registration with window server (critical for background-launched processes)
+        self.app.activateIgnoringOtherApps_(False)
 
         # Create a transparent, click-through, always-on-top window
         self.window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
-            ((0, 0), (100, 100)),  # Initial size, will be updated
+            ((0, 0), (100, 100)),
             NSWindowStyleMaskBorderless,
             NSBackingStoreBuffered,
             False
@@ -243,6 +257,7 @@ class OverlayController:
 
         self.last_bounds = None
         self.visible = False
+        self._heartbeat = 0
 
         # Load subliminal messages
         self.load_subliminal_messages()
@@ -402,13 +417,24 @@ class OverlayController:
 
         if not self.visible:
             self.window.orderFront_(None)
+            self.window.setLevel_(1000)  # Re-assert level
             self.visible = True
+            if self._heartbeat <= 100:
+                on_screen = self.window.isVisible()
+                print(f"  [overlay] Window shown — score={score} bounds={bounds} isVisible={on_screen}")
 
         # Subliminal flash check
         self.trigger_subliminal_flash()
 
     def poll_(self, timer):
         """Timer callback."""
+        self._heartbeat += 1
+        if self._heartbeat == 1:
+            print("  [overlay] Timer firing — first poll")
+        elif self._heartbeat == 20:
+            print(f"  [overlay] Heartbeat OK — {self._heartbeat} polls, visible={self.visible}")
+        elif self._heartbeat % 600 == 0:
+            print(f"  [overlay] Heartbeat — {self._heartbeat} polls, visible={self.visible}")
         self.update()
 
 
@@ -464,4 +490,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
