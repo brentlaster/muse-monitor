@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 NeuroFocus Overlay — draws a glowing colored border around the active macOS window
@@ -356,6 +357,17 @@ class OverlayController:
                 subliminal['interval'] = max(5, settings.get('subliminal_interval', 20))
                 if subliminal['enabled'] and not subliminal['messages']:
                     self.load_subliminal_messages()
+                # Handle test request — flash at visible opacity
+                if settings.get('subliminal_test') and subliminal.get('messages'):
+                    subliminal['current_msg'] = random.choice(subliminal['messages'])
+                    subliminal['flash_alpha'] = 0.7  # Clearly visible for testing
+                    subliminal['flash_active'] = True
+                    subliminal['last_flash'] = time.time()
+                    self.glow_view.setNeedsDisplay_(True)
+                    NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                        1.5, self, 'endFlash:', None, False  # Visible for 1.5 seconds
+                    )
+                    print(f"  [subliminal] TEST flash: \"{subliminal['current_msg']}\" at 70% opacity")
 
         gw = overlay_cfg.get('glow_width', GLOW_WIDTH)
 
@@ -414,10 +426,19 @@ def main():
 ╚══════════════════════════════════════════════════╝
 """)
 
-    # Verify server is reachable
-    test = fetch_json('/focus-score')
-    if test is None:
-        print("  ⚠  Cannot reach server at localhost:8000")
+    # Verify server is reachable (retry for up to 10 seconds after boot)
+    connected = False
+    for attempt in range(20):
+        test = fetch_json('/focus-score')
+        if test is not None:
+            connected = True
+            break
+        if attempt == 0:
+            print("  ⏳  Waiting for server at localhost:8000...")
+        time.sleep(0.5)
+
+    if not connected:
+        print("  ✗  Cannot reach server at localhost:8000 after 10 seconds")
         print("     Start neurofocus-server.py first.\n")
         sys.exit(1)
     print("  ✓  Connected to NeuroFocus server")
@@ -443,3 +464,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
