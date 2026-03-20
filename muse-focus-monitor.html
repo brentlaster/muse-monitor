@@ -321,7 +321,11 @@ select.si2{width:auto;padding-right:6px;cursor:pointer;-webkit-appearance:auto}
           <input type="number" class="si2" id="ovSubInterval" value="20" min="5" max="120" style="width:40px" onchange="updateOverlaySettings()">
           <span class="sl2">sec</span>
         </div>
+        <div class="sg2">
+          <button class="b bg" onclick="testSubliminal()" style="font-size:9px;padding:3px 8px">Test</button>
+        </div>
       </div>
+      <div id="subPreview" style="display:none;margin-top:4px;padding:6px;background:var(--c2);border-radius:4px;font-size:11px;color:var(--cy);text-align:center;font-weight:500"></div>
       <div style="font-size:9px;color:var(--t3);margin-top:4px;line-height:1.4">
         Subliminal: flashes brief affirmations within the overlay border at threshold-of-perception opacity.<br>
         Edit <span style="color:var(--cy2)">subliminal-messages.txt</span> to customize messages (one per line).
@@ -1639,48 +1643,48 @@ function startRainBirds(){
   function playBirdChirp(freq,vol){
     if(!ctx||!contSound.active)return;
     var t=ctx.currentTime;
-    // Primary chirp
+    // Primary chirp — short, clean, tight pitch sweep
     var o=ctx.createOscillator();o.type='sine';
     o.frequency.setValueAtTime(freq,t);
-    o.frequency.exponentialRampToValueAtTime(freq*(1.1+Math.random()*0.15),t+.04+Math.random()*0.03);
-    o.frequency.exponentialRampToValueAtTime(freq*(0.95+Math.random()*0.08),t+.12);
+    o.frequency.linearRampToValueAtTime(freq*1.06,t+.025);
+    o.frequency.linearRampToValueAtTime(freq*0.99,t+.08);
     var g=ctx.createGain();g.gain.setValueAtTime(0,t);
-    g.gain.linearRampToValueAtTime(vol*0.13,t+.015);
-    g.gain.exponentialRampToValueAtTime(vol*0.04,t+.1);
-    g.gain.exponentialRampToValueAtTime(.001,t+.4+Math.random()*0.2);
+    g.gain.linearRampToValueAtTime(vol*0.12,t+.008);
+    g.gain.linearRampToValueAtTime(vol*0.06,t+.06);
+    g.gain.exponentialRampToValueAtTime(.001,t+.25);
     o.connect(g);g.connect(amb.master);
-    o.start(t);o.stop(t+.7);
+    o.start(t);o.stop(t+.3);
 
-    // Response chirp (slightly higher, delayed)
-    if(Math.random()>0.35){
+    // Response chirp
+    if(Math.random()>0.4){
       var o2=ctx.createOscillator();o2.type='sine';
-      var delay=0.15+Math.random()*0.15;
-      var f2=freq*(1.02+Math.random()*0.08);
+      var delay=0.12+Math.random()*0.1;
+      var f2=freq*(1.01+Math.random()*0.04);
       o2.frequency.setValueAtTime(f2,t+delay);
-      o2.frequency.exponentialRampToValueAtTime(f2*1.18,t+delay+.04);
-      o2.frequency.exponentialRampToValueAtTime(f2*0.97,t+delay+.1);
+      o2.frequency.linearRampToValueAtTime(f2*1.05,t+delay+.02);
+      o2.frequency.linearRampToValueAtTime(f2*0.99,t+delay+.06);
       var g2=ctx.createGain();g2.gain.setValueAtTime(0,t+delay);
-      g2.gain.linearRampToValueAtTime(vol*0.08,t+delay+.012);
-      g2.gain.exponentialRampToValueAtTime(.001,t+delay+.35);
+      g2.gain.linearRampToValueAtTime(vol*0.07,t+delay+.008);
+      g2.gain.exponentialRampToValueAtTime(.001,t+delay+.2);
       o2.connect(g2);g2.connect(amb.master);
-      o2.start(t+delay);o2.stop(t+delay+.5);
+      o2.start(t+delay);o2.stop(t+delay+.25);
     }
 
-    // Trill (rapid repeated chirps — only when very focused)
+    // Trill — rapid staccato notes
     if(Math.random()>0.7&&amb.score>=65){
       var trillCount=2+Math.floor(Math.random()*3);
       for(var ti=0;ti<trillCount;ti++){
         (function(idx){
-          var td=0.5+idx*0.08;
+          var td=0.3+idx*0.065;
           var ot=ctx.createOscillator();ot.type='sine';
-          var ft=freq*(1.0+Math.random()*0.05);
+          var ft=freq*(1.0+Math.random()*0.02);
           ot.frequency.setValueAtTime(ft,t+td);
-          ot.frequency.exponentialRampToValueAtTime(ft*1.12,t+td+.025);
+          ot.frequency.linearRampToValueAtTime(ft*1.04,t+td+.015);
           var gt=ctx.createGain();gt.gain.setValueAtTime(0,t+td);
-          gt.gain.linearRampToValueAtTime(vol*0.05,t+td+.008);
-          gt.gain.exponentialRampToValueAtTime(.001,t+td+.12);
+          gt.gain.linearRampToValueAtTime(vol*0.04,t+td+.005);
+          gt.gain.exponentialRampToValueAtTime(.001,t+td+.06);
           ot.connect(gt);gt.connect(amb.master);
-          ot.start(t+td);ot.stop(t+td+.15);
+          ot.start(t+td);ot.stop(t+td+.08);
         })(ti);
       }
     }
@@ -1923,46 +1927,45 @@ var _birdFreqs=[329.63,392.00,440,493.88,523.25,659.26,783.99,880,987.77,1046.50
 function playBirdOverlayChirp(freq,vol){
   if(!amb.ctx||!amb.active)return;
   var ctx=amb.ctx,t=ctx.currentTime;
-  // Primary chirp
   var o=ctx.createOscillator();o.type='sine';
   o.frequency.setValueAtTime(freq,t);
-  o.frequency.exponentialRampToValueAtTime(freq*(1.1+Math.random()*0.15),t+.04+Math.random()*0.03);
-  o.frequency.exponentialRampToValueAtTime(freq*(0.95+Math.random()*0.08),t+.12);
+  o.frequency.linearRampToValueAtTime(freq*1.06,t+.025);
+  o.frequency.linearRampToValueAtTime(freq*0.99,t+.08);
   var g=ctx.createGain();g.gain.setValueAtTime(0,t);
-  g.gain.linearRampToValueAtTime(vol*0.13,t+.015);
-  g.gain.exponentialRampToValueAtTime(vol*0.04,t+.1);
-  g.gain.exponentialRampToValueAtTime(.001,t+.4+Math.random()*0.2);
+  g.gain.linearRampToValueAtTime(vol*0.12,t+.008);
+  g.gain.linearRampToValueAtTime(vol*0.06,t+.06);
+  g.gain.exponentialRampToValueAtTime(.001,t+.25);
   o.connect(g);g.connect(amb.master);
-  o.start(t);o.stop(t+.7);
+  o.start(t);o.stop(t+.3);
   // Response chirp
-  if(Math.random()>0.35){
+  if(Math.random()>0.4){
     var o2=ctx.createOscillator();o2.type='sine';
-    var delay=0.15+Math.random()*0.15;
-    var f2=freq*(1.02+Math.random()*0.08);
+    var delay=0.12+Math.random()*0.1;
+    var f2=freq*(1.01+Math.random()*0.04);
     o2.frequency.setValueAtTime(f2,t+delay);
-    o2.frequency.exponentialRampToValueAtTime(f2*1.18,t+delay+.04);
-    o2.frequency.exponentialRampToValueAtTime(f2*0.97,t+delay+.1);
+    o2.frequency.linearRampToValueAtTime(f2*1.05,t+delay+.02);
+    o2.frequency.linearRampToValueAtTime(f2*0.99,t+delay+.06);
     var g2=ctx.createGain();g2.gain.setValueAtTime(0,t+delay);
-    g2.gain.linearRampToValueAtTime(vol*0.08,t+delay+.012);
-    g2.gain.exponentialRampToValueAtTime(.001,t+delay+.35);
+    g2.gain.linearRampToValueAtTime(vol*0.07,t+delay+.008);
+    g2.gain.exponentialRampToValueAtTime(.001,t+delay+.2);
     o2.connect(g2);g2.connect(amb.master);
-    o2.start(t+delay);o2.stop(t+delay+.5);
+    o2.start(t+delay);o2.stop(t+delay+.25);
   }
   // Trill when very focused
   if(Math.random()>0.7&&amb.score>=65){
     var tc=2+Math.floor(Math.random()*3);
     for(var ti=0;ti<tc;ti++){
       (function(idx){
-        var td=0.5+idx*0.08;
+        var td=0.3+idx*0.065;
         var ot=ctx.createOscillator();ot.type='sine';
-        var ft=freq*(1.0+Math.random()*0.05);
+        var ft=freq*(1.0+Math.random()*0.02);
         ot.frequency.setValueAtTime(ft,t+td);
-        ot.frequency.exponentialRampToValueAtTime(ft*1.12,t+td+.025);
+        ot.frequency.linearRampToValueAtTime(ft*1.04,t+td+.015);
         var gt=ctx.createGain();gt.gain.setValueAtTime(0,t+td);
-        gt.gain.linearRampToValueAtTime(vol*0.05,t+td+.008);
-        gt.gain.exponentialRampToValueAtTime(.001,t+td+.12);
+        gt.gain.linearRampToValueAtTime(vol*0.04,t+td+.005);
+        gt.gain.exponentialRampToValueAtTime(.001,t+td+.06);
         ot.connect(gt);gt.connect(amb.master);
-        ot.start(t+td);ot.stop(t+td+.15);
+        ot.start(t+td);ot.stop(t+td+.08);
       })(ti);
     }
   }
@@ -3033,6 +3036,45 @@ function postScore(){
     var body=JSON.stringify({score:S.score,state:S.score>=70?'deep':S.score>=40?'moderate':S.score>=0?'distracted':'noSignal',paused:S.paused,timestamp:now});
     fetch('/focus-score',{method:'POST',headers:{'Content-Type':'application/json'},body:body}).catch(function(){});
   }catch(e){}
+}
+
+function testSubliminal(){
+  var preview=document.getElementById('subPreview');
+  preview.textContent='Loading messages...';
+  preview.style.display='block';
+  fetch('/subliminal-messages').then(function(r){return r.json()}).then(function(data){
+    if(data.messages&&data.messages.length){
+      var msg=data.messages[Math.floor(Math.random()*data.messages.length)];
+      preview.textContent='✓ "'+msg+'"  (1 of '+data.messages.length+' messages)';
+      preview.style.color='var(--cy)';
+      // Also tell overlay to flash it at visible opacity for testing
+      try{
+        fetch('/overlay-settings',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            brightness:parseInt(document.getElementById('ovBright').value)||100,
+            border_width:parseInt(document.getElementById('ovBorder').value)||4,
+            glow_width:parseInt(document.getElementById('ovGlow').value)||12,
+            subliminal:true,subliminal_interval:1,subliminal_test:true
+          })}).catch(function(){});
+      }catch(e){}
+      dbg('Subliminal test: "'+msg+'" — check overlay for visible flash','ok');
+      // Reset interval back after 3 seconds
+      setTimeout(function(){
+        updateOverlaySettings();
+        preview.textContent='✓ "'+msg+'" — overlay flashed at visible opacity';
+      },3000);
+      // Fade out preview after 6 seconds
+      setTimeout(function(){preview.style.display='none'},6000);
+    }else{
+      preview.textContent='✗ No messages loaded — check subliminal-messages.txt';
+      preview.style.color='var(--rd)';
+      setTimeout(function(){preview.style.display='none'},5000);
+    }
+  }).catch(function(e){
+    preview.textContent='✗ Server error: '+e;
+    preview.style.color='var(--rd)';
+    setTimeout(function(){preview.style.display='none'},5000);
+  });
 }
 
 function updateOverlaySettings(){
