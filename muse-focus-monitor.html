@@ -1907,7 +1907,7 @@ function loadBirdSamples(){
 
 function playBirdSample(vol){
   if(!amb.ctx||!amb.active)return;
-  if(!_birdSamples.buffers.length){playBirdSynthFallback(vol);return}
+  if(!_birdSamples.buffers.length)return; // Clips not loaded yet — stay silent
   var ctx=amb.ctx,t=ctx.currentTime;
   var buf=_birdSamples.buffers[Math.floor(Math.random()*_birdSamples.buffers.length)];
   var src=ctx.createBufferSource();
@@ -1917,9 +1917,9 @@ function playBirdSample(vol){
   var g=ctx.createGain();
   // Fade in/out envelope
   g.gain.setValueAtTime(0,t);
-  g.gain.linearRampToValueAtTime(vol*0.5,t+0.05);
-  g.gain.setValueAtTime(vol*0.5,t+buf.duration*0.8);
-  g.gain.linearRampToValueAtTime(0,t+buf.duration);
+  g.gain.linearRampToValueAtTime(vol*0.9,t+0.05);
+  g.gain.setValueAtTime(vol*0.9,t+buf.duration*0.7);
+  g.gain.linearRampToValueAtTime(0,t+buf.duration*0.95);
   // Slight random panning for spatial feel
   if(ctx.createStereoPanner){
     var pan=ctx.createStereoPanner();
@@ -1929,22 +1929,6 @@ function playBirdSample(vol){
     src.connect(g);g.connect(amb.master);
   }
   src.start(t);
-}
-
-function playBirdSynthFallback(vol){
-  // Simple fallback if no samples loaded — minimal sine chirp
-  if(!amb.ctx||!amb.active)return;
-  var ctx=amb.ctx,t=ctx.currentTime;
-  var freq=800+Math.random()*1600;
-  var o=ctx.createOscillator();o.type='sine';
-  o.frequency.setValueAtTime(freq,t);
-  o.frequency.linearRampToValueAtTime(freq*1.05,t+.02);
-  o.frequency.linearRampToValueAtTime(freq*0.99,t+.06);
-  var g=ctx.createGain();g.gain.setValueAtTime(0,t);
-  g.gain.linearRampToValueAtTime(vol*0.08,t+.008);
-  g.gain.exponentialRampToValueAtTime(.001,t+.2);
-  o.connect(g);g.connect(amb.master);
-  o.start(t);o.stop(t+.25);
 }
 
 function scheduleBirdOverlay(){
@@ -2040,19 +2024,9 @@ function playTone(freq,type,vel){
     o.connect(g);h.connect(gh);h2.connect(gh2);gh.connect(g);gh2.connect(g);g.connect(amb.bus);
     o.start(t);h.start(t);h2.start(t);o.stop(t+4);h.stop(t+4);h2.stop(t+4);
   }else if(type==='chirp'){
-    // Bird chirp
-    var o=ctx.createOscillator();o.type='sine';
-    o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(freq*1.15,t+.05);
-    o.frequency.exponentialRampToValueAtTime(freq*.98,t+.15);
-    var g=ctx.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v*.15,t+.02);
-    g.gain.exponentialRampToValueAtTime(.001,t+.5);
-    o.connect(g);g.connect(amb.bus);o.start(t);o.stop(t+.6);
-    // Response chirp sometimes
-    if(Math.random()>.4){var o2=ctx.createOscillator();o2.type='sine';
-      o2.frequency.setValueAtTime(freq*1.05,t+.18);o2.frequency.exponentialRampToValueAtTime(freq*1.22,t+.23);
-      var g2=ctx.createGain();g2.gain.setValueAtTime(0,t+.18);g2.gain.linearRampToValueAtTime(v*.1,t+.2);
-      g2.gain.exponentialRampToValueAtTime(.001,t+.5);
-      o2.connect(g2);g2.connect(amb.bus);o2.start(t+.18);o2.stop(t+.55)}
+    // Bird — play recorded sample instead of synthesis
+    playBirdSample(v);
+    return;
   }else if(type==='pad'){
     // Ambient pad — slow swell
     var o1=ctx.createOscillator();o1.type='sine';o1.frequency.value=freq;
@@ -2318,6 +2292,7 @@ function toggleAmbient(){
   var on=document.getElementById('sAmb').checked;
   if(on){
     initAudio();if(amb.ctx.state==='suspended')amb.ctx.resume();
+    loadBirdSamples(); // Preload for any bird-using style
     amb.active=true;
     var vol=(parseInt(document.getElementById('ambVol').value)||50)/100;
     amb.master.gain.linearRampToValueAtTime(vol,amb.ctx.currentTime+.5);
