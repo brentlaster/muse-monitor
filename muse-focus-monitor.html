@@ -1605,6 +1605,7 @@ function startOcean(){
 function startRainBirds(){
   var ctx=amb.ctx;if(!ctx)return;
   stopContinuous();
+  loadBirdSamples();
   contSound.active=true;
   var noiseBuf=createNoiseBuffer(ctx,4);
 
@@ -1636,93 +1637,33 @@ function startRainBirds(){
     {src:rumbleSrc,filter:rumbleLP,gain:rumbleGain,role:'rumble'}
   ];
 
-  // === BIRD LAYER (scheduled chirps — density scales with focus) ===
-  var birdNotes=STYLES.rainbirds.notes;
+  // === BIRD LAYER (scheduled clips — density scales with focus) ===
   var birdTimer=null;
-
-  function playBirdChirp(freq,vol){
-    if(!ctx||!contSound.active)return;
-    var t=ctx.currentTime;
-    // Primary chirp — short, clean, tight pitch sweep
-    var o=ctx.createOscillator();o.type='sine';
-    o.frequency.setValueAtTime(freq,t);
-    o.frequency.linearRampToValueAtTime(freq*1.06,t+.025);
-    o.frequency.linearRampToValueAtTime(freq*0.99,t+.08);
-    var g=ctx.createGain();g.gain.setValueAtTime(0,t);
-    g.gain.linearRampToValueAtTime(vol*0.12,t+.008);
-    g.gain.linearRampToValueAtTime(vol*0.06,t+.06);
-    g.gain.exponentialRampToValueAtTime(.001,t+.25);
-    o.connect(g);g.connect(amb.master);
-    o.start(t);o.stop(t+.3);
-
-    // Response chirp
-    if(Math.random()>0.4){
-      var o2=ctx.createOscillator();o2.type='sine';
-      var delay=0.12+Math.random()*0.1;
-      var f2=freq*(1.01+Math.random()*0.04);
-      o2.frequency.setValueAtTime(f2,t+delay);
-      o2.frequency.linearRampToValueAtTime(f2*1.05,t+delay+.02);
-      o2.frequency.linearRampToValueAtTime(f2*0.99,t+delay+.06);
-      var g2=ctx.createGain();g2.gain.setValueAtTime(0,t+delay);
-      g2.gain.linearRampToValueAtTime(vol*0.07,t+delay+.008);
-      g2.gain.exponentialRampToValueAtTime(.001,t+delay+.2);
-      o2.connect(g2);g2.connect(amb.master);
-      o2.start(t+delay);o2.stop(t+delay+.25);
-    }
-
-    // Trill — rapid staccato notes
-    if(Math.random()>0.7&&amb.score>=65){
-      var trillCount=2+Math.floor(Math.random()*3);
-      for(var ti=0;ti<trillCount;ti++){
-        (function(idx){
-          var td=0.3+idx*0.065;
-          var ot=ctx.createOscillator();ot.type='sine';
-          var ft=freq*(1.0+Math.random()*0.02);
-          ot.frequency.setValueAtTime(ft,t+td);
-          ot.frequency.linearRampToValueAtTime(ft*1.04,t+td+.015);
-          var gt=ctx.createGain();gt.gain.setValueAtTime(0,t+td);
-          gt.gain.linearRampToValueAtTime(vol*0.04,t+td+.005);
-          gt.gain.exponentialRampToValueAtTime(.001,t+td+.06);
-          ot.connect(gt);gt.connect(amb.master);
-          ot.start(t+td);ot.stop(t+td+.08);
-        })(ti);
-      }
-    }
-  }
 
   function scheduleBirds(){
     if(!contSound.active||!amb.active)return;
     var sc=amb.score;
     var vol=(parseInt(document.getElementById('ambVol').value)||50)/100;
 
-    // Focus → bird density
-    // Deep focus (70-100): busy dawn chorus, many species, 3-6 birds per event
-    // Moderate (40-69): a few birds, 1-3 per event
-    // Distracted (0-39): rare single distant call
     var birdCount,interval;
     if(sc>=70){
-      birdCount=3+Math.floor(Math.random()*4); // 3-6 birds
-      interval=800+Math.random()*1200;          // Every 0.8-2s
+      birdCount=2+Math.floor(Math.random()*3);
+      interval=1500+Math.random()*2000;
     }else if(sc>=50){
-      birdCount=1+Math.floor(Math.random()*2);  // 1-2 birds
-      interval=2000+Math.random()*2000;          // Every 2-4s
+      birdCount=1+Math.floor(Math.random()*2);
+      interval=3000+Math.random()*3000;
     }else if(sc>=30){
-      birdCount=Math.random()>0.5?1:0;           // Maybe 1 bird
-      interval=4000+Math.random()*3000;           // Every 4-7s
+      birdCount=Math.random()>0.5?1:0;
+      interval=5000+Math.random()*4000;
     }else{
-      birdCount=Math.random()>0.8?1:0;            // Rare single bird
-      interval=6000+Math.random()*5000;            // Every 6-11s
+      birdCount=Math.random()>0.8?1:0;
+      interval=8000+Math.random()*6000;
     }
 
-    // Pick birds from different registers — focused gets more variety
     for(var bi=0;bi<birdCount;bi++){
-      var registerStart=sc>=60?0:Math.floor(birdNotes.length*0.3);
-      var registerEnd=sc>=70?birdNotes.length:Math.floor(birdNotes.length*0.7);
-      var idx=registerStart+Math.floor(Math.random()*(registerEnd-registerStart));
-      var freq=birdNotes[Math.min(idx,birdNotes.length-1)];
-      var delay=bi*(0.2+Math.random()*0.6); // Stagger birds
-      var bv=vol*(0.4+Math.random()*0.4)*(bi===0?1:0.6); // First bird louder
-      setTimeout(function(f,v){return function(){playBirdChirp(f,v)}}(freq,bv),delay*1000);
+      var delay=bi*(0.5+Math.random()*1.5);
+      var bv=vol*(0.3+Math.random()*0.4)*(bi===0?1:0.6);
+      setTimeout(function(v){return function(){playBirdSample(v)}}(bv),delay*1000);
     }
 
     birdTimer=setTimeout(scheduleBirds,interval);
@@ -1920,55 +1861,90 @@ function startCustomAudio(audioUrl){
   }
 }
 
-// ==================== BIRD OVERLAY (layers over any audio) ====================
+// ==================== BIRD SAMPLE SYSTEM ====================
+// Loads real bird recordings from birds/ directory, plays them at varying rates/volumes
+var _birdSamples={buffers:[],loaded:false,loading:false};
 var _birdOverlay={active:false,timer:null};
-var _birdFreqs=[329.63,392.00,440,493.88,523.25,659.26,783.99,880,987.77,1046.50,1318.51,1479.98,1760,2093.00,2349.32,2637.02];
 
-function playBirdOverlayChirp(freq,vol){
+function loadBirdSamples(){
+  if(_birdSamples.loading||_birdSamples.loaded)return;
+  _birdSamples.loading=true;
+  initAudio();
+  fetch('/bird-clips').then(function(r){return r.json()}).then(function(data){
+    if(!data.clips||!data.clips.length){
+      dbg('No bird clips found in birds/ directory — using synthesized chirps','warn');
+      _birdSamples.loading=false;
+      return;
+    }
+    dbg('Loading '+data.clips.length+' bird clips...','info');
+    var loaded=0;
+    data.clips.forEach(function(url){
+      fetch(url).then(function(r){return r.arrayBuffer()}).then(function(buf){
+        return amb.ctx.decodeAudioData(buf);
+      }).then(function(decoded){
+        _birdSamples.buffers.push(decoded);
+        loaded++;
+        if(loaded===data.clips.length){
+          _birdSamples.loaded=true;
+          _birdSamples.loading=false;
+          dbg('Bird clips ready: '+_birdSamples.buffers.length+' samples loaded','ok');
+        }
+      }).catch(function(e){
+        loaded++;
+        dbg('Failed to decode bird clip '+url+': '+e,'warn');
+        if(loaded===data.clips.length){
+          _birdSamples.loaded=_birdSamples.buffers.length>0;
+          _birdSamples.loading=false;
+          dbg('Bird clips: '+_birdSamples.buffers.length+' loaded, '+(data.clips.length-_birdSamples.buffers.length)+' failed','info');
+        }
+      });
+    });
+  }).catch(function(){
+    _birdSamples.loading=false;
+    dbg('Could not fetch bird clip list — using synthesized chirps','warn');
+  });
+}
+
+function playBirdSample(vol){
+  if(!amb.ctx||!amb.active)return;
+  if(!_birdSamples.buffers.length){playBirdSynthFallback(vol);return}
+  var ctx=amb.ctx,t=ctx.currentTime;
+  var buf=_birdSamples.buffers[Math.floor(Math.random()*_birdSamples.buffers.length)];
+  var src=ctx.createBufferSource();
+  src.buffer=buf;
+  // Slight pitch variation (0.85-1.15x) for natural variety
+  src.playbackRate.value=0.85+Math.random()*0.3;
+  var g=ctx.createGain();
+  // Fade in/out envelope
+  g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(vol*0.5,t+0.05);
+  g.gain.setValueAtTime(vol*0.5,t+buf.duration*0.8);
+  g.gain.linearRampToValueAtTime(0,t+buf.duration);
+  // Slight random panning for spatial feel
+  if(ctx.createStereoPanner){
+    var pan=ctx.createStereoPanner();
+    pan.pan.value=(Math.random()-0.5)*0.8;
+    src.connect(g);g.connect(pan);pan.connect(amb.master);
+  }else{
+    src.connect(g);g.connect(amb.master);
+  }
+  src.start(t);
+}
+
+function playBirdSynthFallback(vol){
+  // Simple fallback if no samples loaded — minimal sine chirp
   if(!amb.ctx||!amb.active)return;
   var ctx=amb.ctx,t=ctx.currentTime;
+  var freq=800+Math.random()*1600;
   var o=ctx.createOscillator();o.type='sine';
   o.frequency.setValueAtTime(freq,t);
-  o.frequency.linearRampToValueAtTime(freq*1.06,t+.025);
-  o.frequency.linearRampToValueAtTime(freq*0.99,t+.08);
+  o.frequency.linearRampToValueAtTime(freq*1.05,t+.02);
+  o.frequency.linearRampToValueAtTime(freq*0.99,t+.06);
   var g=ctx.createGain();g.gain.setValueAtTime(0,t);
-  g.gain.linearRampToValueAtTime(vol*0.12,t+.008);
-  g.gain.linearRampToValueAtTime(vol*0.06,t+.06);
-  g.gain.exponentialRampToValueAtTime(.001,t+.25);
+  g.gain.linearRampToValueAtTime(vol*0.08,t+.008);
+  g.gain.exponentialRampToValueAtTime(.001,t+.2);
   o.connect(g);g.connect(amb.master);
-  o.start(t);o.stop(t+.3);
-  // Response chirp
-  if(Math.random()>0.4){
-    var o2=ctx.createOscillator();o2.type='sine';
-    var delay=0.12+Math.random()*0.1;
-    var f2=freq*(1.01+Math.random()*0.04);
-    o2.frequency.setValueAtTime(f2,t+delay);
-    o2.frequency.linearRampToValueAtTime(f2*1.05,t+delay+.02);
-    o2.frequency.linearRampToValueAtTime(f2*0.99,t+delay+.06);
-    var g2=ctx.createGain();g2.gain.setValueAtTime(0,t+delay);
-    g2.gain.linearRampToValueAtTime(vol*0.07,t+delay+.008);
-    g2.gain.exponentialRampToValueAtTime(.001,t+delay+.2);
-    o2.connect(g2);g2.connect(amb.master);
-    o2.start(t+delay);o2.stop(t+delay+.25);
-  }
-  // Trill when very focused
-  if(Math.random()>0.7&&amb.score>=65){
-    var tc=2+Math.floor(Math.random()*3);
-    for(var ti=0;ti<tc;ti++){
-      (function(idx){
-        var td=0.3+idx*0.065;
-        var ot=ctx.createOscillator();ot.type='sine';
-        var ft=freq*(1.0+Math.random()*0.02);
-        ot.frequency.setValueAtTime(ft,t+td);
-        ot.frequency.linearRampToValueAtTime(ft*1.04,t+td+.015);
-        var gt=ctx.createGain();gt.gain.setValueAtTime(0,t+td);
-        gt.gain.linearRampToValueAtTime(vol*0.04,t+td+.005);
-        gt.gain.exponentialRampToValueAtTime(.001,t+td+.06);
-        ot.connect(gt);gt.connect(amb.master);
-        ot.start(t+td);ot.stop(t+td+.08);
-      })(ti);
-    }
-  }
+  o.start(t);o.stop(t+.25);
 }
 
 function scheduleBirdOverlay(){
@@ -1977,18 +1953,14 @@ function scheduleBirdOverlay(){
   var sc=amb.score;
   var vol=(parseInt(document.getElementById('ambVol').value)||50)/100;
   var birdCount,interval;
-  if(sc>=70){birdCount=3+Math.floor(Math.random()*4);interval=800+Math.random()*1200}
-  else if(sc>=50){birdCount=1+Math.floor(Math.random()*2);interval=2000+Math.random()*2000}
-  else if(sc>=30){birdCount=Math.random()>0.5?1:0;interval=4000+Math.random()*3000}
-  else{birdCount=Math.random()>0.8?1:0;interval=6000+Math.random()*5000}
+  if(sc>=70){birdCount=2+Math.floor(Math.random()*3);interval=1500+Math.random()*2000}
+  else if(sc>=50){birdCount=1+Math.floor(Math.random()*2);interval=3000+Math.random()*3000}
+  else if(sc>=30){birdCount=Math.random()>0.5?1:0;interval=5000+Math.random()*4000}
+  else{birdCount=Math.random()>0.8?1:0;interval=8000+Math.random()*6000}
   for(var bi=0;bi<birdCount;bi++){
-    var regStart=sc>=60?0:Math.floor(_birdFreqs.length*0.3);
-    var regEnd=sc>=70?_birdFreqs.length:Math.floor(_birdFreqs.length*0.7);
-    var idx=regStart+Math.floor(Math.random()*(regEnd-regStart));
-    var freq=_birdFreqs[Math.min(idx,_birdFreqs.length-1)];
-    var delay=bi*(0.2+Math.random()*0.6);
-    var bv=vol*(0.4+Math.random()*0.4)*(bi===0?1:0.6);
-    setTimeout(function(f,v){return function(){playBirdOverlayChirp(f,v)}}(freq,bv),delay*1000);
+    var delay=bi*(0.5+Math.random()*1.5);
+    var bv=vol*(0.3+Math.random()*0.4)*(bi===0?1:0.6);
+    setTimeout(function(v){return function(){playBirdSample(v)}}(bv),delay*1000);
   }
   _birdOverlay.timer=setTimeout(scheduleBirdOverlay,interval);
 }
@@ -1996,9 +1968,10 @@ function scheduleBirdOverlay(){
 function startBirdOverlay(){
   stopBirdOverlay();
   if(!amb.ctx)initAudio();
+  loadBirdSamples();
   _birdOverlay.active=true;
   scheduleBirdOverlay();
-  dbg('Bird overlay started — chirps scale with focus','ok');
+  dbg('Bird overlay started'+((_birdSamples.loaded)?' — using '+_birdSamples.buffers.length+' recorded clips':' — loading clips...'),'ok');
 }
 
 function stopBirdOverlay(){

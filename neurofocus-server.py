@@ -225,6 +225,8 @@ class NeuroFocusHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json(data)
         elif self.path == '/subliminal-messages':
             self.send_subliminal_messages()
+        elif self.path == '/bird-clips':
+            self.send_bird_clips()
         elif self.path == '/favicon.ico':
             self.send_response(204)
             self.end_headers()
@@ -259,6 +261,24 @@ class NeuroFocusHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             print(f"  [subliminal] Error: {e}")
             self.send_json({'messages': [], 'error': str(e)})
+
+    def send_bird_clips(self):
+        """List audio files in the birds/ subdirectory."""
+        try:
+            birds_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'birds')
+            if not os.path.exists(birds_dir):
+                # Also check CWD
+                birds_dir = os.path.join(os.getcwd(), 'birds')
+            if os.path.exists(birds_dir):
+                exts = ('.mp3', '.wav', '.ogg', '.m4a', '.webm')
+                clips = [f for f in os.listdir(birds_dir) if f.lower().endswith(exts)]
+                urls = ['/birds/' + c for c in sorted(clips)]
+                print(f"  [birds] Found {len(urls)} clips in {birds_dir}")
+                self.send_json({'clips': urls})
+            else:
+                self.send_json({'clips': [], 'error': 'birds/ directory not found'})
+        except Exception as e:
+            self.send_json({'clips': [], 'error': str(e)})
 
     def do_POST(self):
         if self.path == '/focus-score':

@@ -1,121 +1,42 @@
-# NeuroFocus — Muse S EEG Focus Monitor
+# Bird Sound Clips for NeuroFocus
 
-A real-time brain-computer interface that connects to the **Muse S (Athena)** EEG headband via Bluetooth Low Energy and provides live focus monitoring, ambient audio neurofeedback, a native macOS desktop overlay, timed focus goals, and session recording — all from a single HTML file in your browser with companion Python scripts.
+Place short bird call recordings (MP3, WAV, OGG, M4A) in this directory.
+The app will automatically load them and play random clips at a density
+that scales with your focus level.
 
-## What It Does
+## Recommended clip format
 
-NeuroFocus reads raw EEG data from your Muse S headband, processes it through a research-grade signal pipeline, and gives you a real-time **focus score (0–100)** based on your brain's electrical activity.
+- **Duration:** 1-5 seconds per clip (individual calls, not long recordings)
+- **Format:** MP3 is best (small files, fast loading)
+- **Variety:** 8-15 different clips gives good variety without repetition
+- **Types:** Mix of songbirds, warbler trills, robin calls, chickadee notes, etc.
+- **Quality:** Clean recordings without background noise work best
 
-### Dashboard
-- **Live focus gauge** with Deep Focus / Moderate / Distracted states
-- **EEG waveform display** — all 4 channels (TP9, AF7, AF8, TP10)
-- **Band power visualization** (Delta, Theta, Alpha, Beta, Gamma) with customizable target presets
-- **Focus history timeline** with colored zone indicators
-- **Zone time tracking** — time and percentage in each focus zone (deep/moderate/distracted)
-- **Session history** — persisted across sessions, exportable to CSV
+## Free sources (no attribution required)
 
-### Feedback & Alerts
-- **Drift alerts** — visual flash, audio ding, and widget notification when focus drops
-- **Ambient audio neurofeedback** — 5 generative styles (handpan, forest, zen, ambient, solfeggio) with density that responds to focus level
-- **Desktop widget** — color-only orb (or text mode) that stays visible when the app is minimized
-- **Native macOS window overlay** — glowing colored border around your active app window reflecting focus level in real-time
+### Pixabay (easiest — no account needed)
+1. Go to https://pixabay.com/sound-effects/search/bird%20chirp/
+2. Click individual clips, preview them
+3. Download the short ones (1-5 seconds)
+4. Rename to descriptive names: robin-call.mp3, warbler-trill.mp3, etc.
 
-### Calibration & Accuracy
-- **Voice-guided 2-minute baseline calibration** — spoken instructions with configurable voice
-- **Individual Alpha Frequency (IAF) detection** — adapts band boundaries to your brain
-- **Frontal channel weighting** — AF7/AF8 weighted 2.5× over TP9/TP10
-- **Calibration persisted** across sessions via localStorage
-- **Pause button** — suspend all tracking when you take the headband off
+### Freesound.org (largest collection)
+1. Create a free account at https://freesound.org
+2. Search for "bird call" or "bird chirp", filter by License: CC0
+3. Download short individual clips
+4. Some good search terms: "robin song", "warbler", "chickadee", "wren", "thrush"
 
-### Recording & Analysis
-- **Session recording** to CSV with band powers, focus state, and active macOS app
-- **Session history** — automatically saved, browsable, and exportable
-- **Active app tracking** — correlate focus with which app you're using
+### Xeno-canto (research-grade recordings)
+1. Go to https://xeno-canto.org
+2. Search by species name
+3. Filter by quality: A rating
+4. Download short clips (trim long recordings with any audio editor)
+5. Note: Most clips are CC-BY or CC-BY-NC — check license per recording
 
-## Requirements
+## Tips
 
-- **Muse S (Athena)** headband — the newer model with Athena RevE/F hardware
-- **Google Chrome** on macOS (Web Bluetooth API required)
-- **Python 3** (included with macOS)
-- **PyObjC** (optional, for desktop overlay): `pip3 install pyobjc-framework-Cocoa pyobjc-framework-Quartz`
-
-> **Note:** Safari and Firefox do not support Web Bluetooth. The app must be served via `localhost`, not opened as a `file://` URL.
-
-## Quick Start
-
-```bash
-# One-command startup (starts server, overlay, and opens Chrome):
-./start.sh
-
-# To stop everything:
-./start.sh --stop
-```
-
-Or start components individually:
-
-```bash
-# Terminal 1: Server
-python3 neurofocus-server.py
-
-# Terminal 2: Desktop overlay (optional, requires PyObjC)
-python3 neurofocus-overlay.py
-
-# Open in Chrome:
-open -a "Google Chrome" http://localhost:8000/muse-focus-monitor.html
-```
-
-Then: Turn on your Muse S → Click "Connect" → Select your Muse → Put on the headband → Wait ~10 seconds for signal.
-
-## Files
-
-| File | Purpose |
-|------|---------|
-| `muse-focus-monitor.html` | The complete app — single file, no dependencies |
-| `neurofocus-server.py` | HTTP server with active app and window bounds detection |
-| `neurofocus-overlay.py` | Native macOS overlay — glowing border around active window |
-| `neurofocus-diag.py` | Diagnostic tool — 5-second delay window bounds check |
-| `start.sh` | One-command launcher — starts/stops all components |
-| `README.md` | This file |
-| `INSTRUCTIONS.md` | Comprehensive usage guide (22 sections) |
-
-## Signal Processing Pipeline
-
-1. **14-bit LSB-first decoding** — Muse S Athena packet format (verified against OpenMuse)
-2. **DC offset removal** — centers raw 0–1450µV signal around zero
-3. **4th-order Butterworth IIR bandpass** — 1–50 Hz (flat within 0.75 dB across 2–30 Hz)
-4. **60 Hz notch filter** — removes US power line interference
-5. **Artifact rejection** — detects and removes eye blinks (>150µV p-p) and jaw clenches
-6. **Welch's method PSD** — averaged overlapping 128-sample FFT segments for stable spectral estimates
-7. **Individual Alpha Frequency detection** — adapts band boundaries to your personal alpha peak
-8. **Frontal channel weighting** — AF7/AF8 weighted 2.5× over TP9/TP10 for attention relevance
-9. **Composite focus metric** — weighted blend of 4 research-validated engagement indices
-10. **Auto-calibrating percentile scoring** with EMA temporal smoothing (or manual baseline)
-
-## Architecture
-
-```
-┌─────────────┐  BLE notify   ┌─────────────┐  POST /focus-score  ┌──────────────┐
-│  Muse S     │ ────────────→ │   Chrome     │ ──────────────────→ │    Server    │
-│  Headband   │               │  (HTML app)  │    every ~1sec      │  (port 8000) │
-└─────────────┘               │              │                     │              │
-                              │ GET /active-app                    │ osascript    │
-                              │ ←──────────── │                    │ queries      │
-                              └─────────────┘                     └──────┬───────┘
-                                                                         │
-                              ┌─────────────┐  GET /focus-score          │
-                              │   Overlay    │ ←─────────────────────────┤
-                              │  (PyObjC)   │  GET /active-window       │
-                              │             │ ←─────────────────────────┘
-                              └─────────────┘
-                              Draws glow around active window
-```
-
-## Credits
-
-- **Muse S BLE protocol**: Based on [amused-py](https://github.com/Amused-EEG/amused-py) by Adrian Tadeusz Belmans
-- **Packet decoder**: Verified against [OpenMuse](https://github.com/DominiqueMakowski/OpenMuse) by Dominique Makowski
-- **Focus metrics**: Based on Pope et al. (1995) engagement index and Monastra et al. (2005) attention index
-
-## License
-
-This project is for personal and educational use. The Muse S is a product of InteraXon Inc. This project is not affiliated with or endorsed by InteraXon.
+- Trim long recordings to just the bird call portion (1-3 seconds)
+- Remove silence at the beginning and end
+- Normalize volume so clips are roughly similar loudness
+- The app randomly pitch-shifts clips ±15% for variety, so fewer clips go further
+- 8 clips minimum for good variety; 15+ clips for rich soundscapes
